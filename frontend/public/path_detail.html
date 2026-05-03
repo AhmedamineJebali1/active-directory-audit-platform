@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Chemin d'attaque — AD Audit AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=11" />
+  <link rel="stylesheet" href="/css/redesign.css?v=11" />
+  <link rel="stylesheet" href="/css/base.css?v=11" />
+  <link rel="stylesheet" href="/css/components.css?v=11" />
+  <link rel="stylesheet" href="/css/dashboard.css?v=11" />
+  <link rel="stylesheet" href="/css/guide.css?v=11" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="/js/api.js?v=11"></script>
+  <script src="/js/auth.js?v=11"></script>
+  <script src="/js/path_detail.js?v=11"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <style>
+    /* Path detail polish — thin layer on top of redesign.css */
+    .pd-header {
+      padding: 24px 0 28px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .pd-back { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-muted); text-decoration: none; font-size: 12px; font-weight: 600; }
+    .pd-back:hover { color: var(--color-text); }
+    .pd-title-row { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+    .pd-eng-code {
+      font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+      color: var(--color-accent); letter-spacing: 0.10em; text-transform: uppercase;
+    }
+    .pd-title { font-size: 24px; font-weight: 800; letter-spacing: -0.4px; margin: 4px 0 0; }
+    .pd-route {
+      font-family: var(--font-mono); font-size: 13px; color: var(--color-text-muted); margin-top: 8px;
+      display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .pd-route__src { color: var(--color-text); }
+    .pd-route__tgt { color: var(--risk-critique); }
+
+    .score-gauge-2026 {
+      padding: 20px;
+      background: var(--color-bg-glass);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      backdrop-filter: blur(10px);
+      text-align: center;
+      transition: transform var(--motion-base) var(--ease-out), border-color var(--motion-base) var(--ease-out);
+    }
+    .score-gauge-2026:hover { transform: translateY(-2px); border-color: var(--color-border-strong); }
+    .score-gauge-2026 .v {
+      font-family: var(--font-mono); font-size: 38px; font-weight: 800; line-height: 1;
+      color: var(--color-text); letter-spacing: -1px;
+    }
+    .score-gauge-2026 .max { font-family: var(--font-mono); font-size: 16px; color: var(--color-text-muted); margin-left: 4px; }
+    .score-gauge-2026 .lbl {
+      margin-top: 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+      text-transform: uppercase; color: var(--color-text-muted);
+    }
+    .score-gauge-2026 .help { font-size: 11px; color: var(--color-text-dim); margin-top: 4px; }
+    .gauge-grid {
+      display: grid; gap: 14px; grid-template-columns: repeat(3, 1fr); margin-bottom: 24px;
+    }
+    @media (max-width: 720px) { .gauge-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="has-mesh-bg">
+  <div class="app-shell" id="app-shell">
+    <div id="nav-slot"></div>
+
+    <div>
+      <header class="topbar">
+        <div>
+          <div class="topbar__breadcrumb"><a href="/dashboard.html" style="color:inherit;text-decoration:none;">Tableau de bord</a> / Mission / Chemin d'attaque</div>
+          <div class="topbar__title">Détail du chemin</div>
+        </div>
+        <div class="topbar__spacer"></div>
+      </header>
+
+  <div class="main-content" x-data="pathDetailApp()" x-init="init()">
+    <template x-if="loading">
+      <div class="empty-state"><span class="spinner"></span></div>
+    </template>
+
+    <template x-if="!loading && error">
+      <div class="page-content">
+        <div class="alert alert-error" x-text="error"></div>
+      </div>
+    </template>
+
+    <template x-if="!loading && path">
+      <div>
+        <!-- ── Header ──────────────────────────────── -->
+        <div class="pd-header">
+          <a class="pd-back" @click.prevent="backToEngagement()" href="#">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Retour à la mission
+          </a>
+          <div class="pd-title-row">
+            <div style="flex:1;min-width:280px;">
+              <div class="pd-eng-code" x-text="(engagement && engagement.code) || ''"></div>
+              <h1 class="pd-title">Chemin d'attaque</h1>
+              <div class="pd-route">
+                <span class="pd-route__src" x-text="path.source_node"></span>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="pd-route__tgt" x-text="path.target_node"></span>
+              </div>
+            </div>
+            <span class="risk-badge" :class="'risk-badge--' + (path.risk_level || 'moyen')" x-text="riskLabel(path.risk_level)"
+                  style="font-size:12px;padding:8px 14px;align-self:flex-start;"></span>
+          </div>
+        </div>
+
+        <div class="page-content">
+
+          <!-- ── Score legend bar ─────────────────── -->
+          <div class="score-legend">
+            <span class="score-legend-label">Échelle</span>
+            <div class="score-legend-bar">
+              <div class="score-seg faible">0–3 Faible</div>
+              <div class="score-seg moyen">4–5 Moyen</div>
+              <div class="score-seg eleve">6–7 Élevé</div>
+              <div class="score-seg critique">8–10 Critique</div>
+            </div>
+          </div>
+
+          <!-- ── Score gauges ─────────────────────── -->
+          <div class="gauge-grid stagger">
+            <div class="score-gauge-2026" style="--i:0">
+              <div><span class="v" :style="'color:' + scoreColor(path.global_score)" x-text="formatScore(path.global_score)"></span><span class="max">/ 10</span></div>
+              <div class="lbl">Score global</div>
+              <div class="help">Risque combiné calculé par l'IA</div>
+            </div>
+            <div class="score-gauge-2026" style="--i:1">
+              <div><span class="v" x-text="formatScore(path.exploitability_score)"></span><span class="max">/ 10</span></div>
+              <div class="lbl">Exploitabilité</div>
+              <div class="help">10 = trivial avec outils publics</div>
+            </div>
+            <div class="score-gauge-2026" style="--i:2">
+              <div><span class="v" x-text="formatScore(path.stealth_score)"></span><span class="max">/ 10</span></div>
+              <div class="lbl">Furtivité</div>
+              <div class="help">10 = aucune trace dans les logs</div>
+            </div>
+          </div>
+
+          <!-- ── Hop chain ────────────────────────── -->
+          <div class="card" style="margin-bottom:24px;">
+            <div class="card-header">
+              <h3 style="font-size:15px;font-weight:600;">
+                Trajectoire
+                <span style="font-weight:400;color:var(--color-stone);font-size:13px;margin-left:6px;"
+                      x-text="path.length + ' saut' + (path.length > 1 ? 's' : '')"></span>
+              </h3>
+              <span style="font-size:11px;color:rgba(255,255,255,0.25);">Survolez une relation pour sa définition</span>
+            </div>
+            <div class="card-body">
+              <div class="hop-chain-wrap">
+                <div class="hop-chain">
+                  <template x-for="(hop, idx) in path.hops" :key="idx">
+                    <span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                      <template x-if="idx === 0">
+                        <span class="hop-node"
+                              :title="hop.source_type + ' — ' + hop.source"
+                              x-text="hop.source_label || hop.source"></span>
+                      </template>
+                      <span class="hop-arrow">→</span>
+                      <span class="hop-edge"
+                            :title="edgeDescription(hop.edge_type)"
+                            x-text="hop.edge_type"></span>
+                      <span class="hop-arrow">→</span>
+                      <span class="hop-node"
+                            :class="idx === path.hops.length - 1 ? 'privileged' : ''"
+                            :title="hop.target_type + ' — ' + hop.target"
+                            x-text="hop.target_label || hop.target"></span>
+                    </span>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Analysis + Recommendation ─────────── -->
+          <div class="grid-2" style="gap:24px;margin-bottom:24px;">
+            <div class="card">
+              <div class="card-header">
+                <h3 style="font-size:15px;font-weight:600;">Analyse IA</h3>
+              </div>
+              <div class="card-body">
+                <template x-if="!path.explanation_fr || path.explanation_fr.startsWith('analyse_echec')">
+                  <p style="color:rgba(255,255,255,0.3);font-size:13px;">Analyse non disponible pour ce chemin.</p>
+                </template>
+                <template x-if="path.explanation_fr && !path.explanation_fr.startsWith('analyse_echec')">
+                  <p style="white-space:pre-wrap;line-height:1.8;font-size:14px;" x-text="path.explanation_fr"></p>
+                </template>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:24px;">
+              <div class="card">
+                <div class="card-header">
+                  <h3 style="font-size:15px;font-weight:600;">Profil de risque</h3>
+                </div>
+                <div class="card-body">
+                  <canvas id="score-chart" height="180"></canvas>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">
+                  <h3 style="font-size:15px;font-weight:600;">Recommandations</h3>
+                </div>
+                <div class="card-body">
+                  <template x-if="!path.recommendation_fr">
+                    <p style="color:rgba(255,255,255,0.3);font-size:13px;">Aucune recommandation disponible.</p>
+                  </template>
+                  <template x-if="path.recommendation_fr">
+                    <p style="white-space:pre-wrap;line-height:1.8;font-size:14px;" x-text="path.recommendation_fr"></p>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── MITRE ATT&CK ─────────────────────── -->
+          <div class="card" style="margin-bottom:24px;">
+            <div class="card-header">
+              <div>
+                <h3 style="font-size:15px;font-weight:600;">Techniques MITRE ATT&amp;CK</h3>
+                <div style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:2px;">Cliquez pour ouvrir la fiche sur attack.mitre.org</div>
+              </div>
+              <template x-if="(path.mitre_techniques || []).length > 0">
+                <span style="font-size:12px;color:rgba(255,255,255,0.3);" x-text="(path.mitre_techniques || []).length + ' technique(s)'"></span>
+              </template>
+            </div>
+            <div class="card-body">
+              <template x-if="(path.mitre_techniques || []).length === 0">
+                <p style="font-size:13px;color:var(--color-stone);">Aucune technique mappée.</p>
+              </template>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <template x-for="t in (path.mitre_techniques || [])" :key="t.technique_id">
+                  <a class="chip" :href="t.url" target="_blank" rel="noopener noreferrer">
+                    <strong x-text="t.technique_id"></strong>
+                    <span x-text="t.technique_name"></span>
+                    <span style="opacity:0.35;">·</span>
+                    <span style="font-size:10px;opacity:0.55;" x-text="t.tactic"></span>
+                  </a>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Edge glossary ────────────────────── -->
+          <div class="card" x-data="{open:false}" style="margin-bottom:24px;">
+            <div class="card-header" @click="open=!open" style="cursor:pointer;user-select:none;">
+              <h3 style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.65);">
+                Glossaire des relations BloodHound
+              </h3>
+              <span style="font-size:18px;color:rgba(255,255,255,0.3);transition:transform 150ms;" :style="open ? 'transform:rotate(180deg)' : ''">⌄</span>
+            </div>
+            <div x-show="open" x-transition style="padding:0 20px 16px;">
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;padding-top:4px;">
+                <template x-for="e in edgeGlossary()" :key="e.name">
+                  <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:7px;padding:10px 14px;">
+                    <div style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--color-accent);margin-bottom:4px;" x-text="e.name"></div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.5;" x-text="e.desc"></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── MITRE Tactics reference ──────────── -->
+          <div class="card" x-data="{open:false}">
+            <div class="card-header" @click="open=!open" style="cursor:pointer;user-select:none;">
+              <h3 style="font-size:14px;font-weight:600;color:rgba(255,255,255,0.65);">
+                Référence tactiques MITRE ATT&amp;CK
+              </h3>
+              <span style="font-size:18px;color:rgba(255,255,255,0.3);transition:transform 150ms;" :style="open ? 'transform:rotate(180deg)' : ''">⌄</span>
+            </div>
+            <div x-show="open" x-transition style="padding:0 20px 16px;">
+              <div style="display:flex;flex-direction:column;gap:4px;padding-top:4px;">
+                <template x-for="t in mitreTactics()" :key="t.id">
+                  <div style="display:flex;gap:12px;align-items:baseline;padding:8px 12px;border-radius:6px;background:rgba(255,255,255,0.02);">
+                    <span style="font-family:var(--font-mono);font-size:11px;color:rgba(255,255,255,0.3);flex-shrink:0;width:56px;" x-text="t.id"></span>
+                    <span style="font-size:12px;font-weight:600;color:rgba(255,255,255,0.7);flex-shrink:0;width:160px;" x-text="t.name"></span>
+                    <span style="font-size:12px;color:rgba(255,255,255,0.35);line-height:1.4;" x-text="t.desc"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </template>
+  </div><!-- /main-content -->
+    </div>
+  </div><!-- /app-shell -->
+
+  <style>[x-cloak]{display:none!important}</style>
+</body>
+</html>

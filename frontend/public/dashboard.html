@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tableau de bord — AD Audit AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=11" />
+  <link rel="stylesheet" href="/css/redesign.css?v=11" />
+  <link rel="stylesheet" href="/css/components.css?v=11" />
+  <script src="/js/api.js?v=11"></script>
+  <script src="/js/auth.js?v=11"></script>
+  <script src="/js/dashboard.js?v=11"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+
+  <style>
+    /* Mission card v2 — extends .mission-card from redesign.css */
+    .mc__top  { padding: 14px 44px 8px 14px; }
+    .mc__code {
+      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+      color: var(--color-accent); letter-spacing: 0.10em; text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .mc__client { font-size: 14px; font-weight: 700; color: var(--color-text); line-height: 1.25; margin-bottom: 2px; }
+    .mc__desc { font-size: 11px; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .mc__meta {
+      display: flex; gap: 18px; padding: 10px 14px;
+      border-top: 1px solid var(--color-border);
+    }
+    .mc__meta-val { font-size: 14px; font-weight: 700; color: var(--color-text); line-height: 1; font-variant-numeric: tabular-nums; }
+    .mc__meta-val--red    { color: var(--risk-critique); }
+    .mc__meta-val--orange { color: var(--risk-eleve); }
+    .mc__meta-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-muted); margin-top: 3px; }
+
+    .mc__dates {
+      padding: 6px 14px; font-size: 10px; color: var(--color-text-muted);
+      display: flex; justify-content: space-between; border-top: 1px solid var(--color-border);
+    }
+
+    .mc__actions {
+      padding: 10px 14px; border-top: 1px solid var(--color-border);
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+
+    .btn-row {
+      flex: 1; padding: 7px 10px; font-size: 12px; font-weight: 600;
+      border-radius: var(--radius-sm); cursor: pointer; text-align: center;
+      text-decoration: none !important; transition: all var(--motion-fast) var(--ease-out);
+      border: 1px solid transparent;
+    }
+    .btn-row--open    { background: rgba(134,188,37,0.10); border-color: rgba(134,188,37,0.25); color: var(--color-accent); }
+    .btn-row--open:hover { background: rgba(134,188,37,0.18); }
+    .btn-row--start   { background: rgba(74,158,255,0.10); border-color: rgba(74,158,255,0.25); color: #4A9EFF; }
+    .btn-row--start:hover { background: rgba(74,158,255,0.20); }
+    .btn-row--finish  { background: rgba(134,188,37,0.10); border-color: rgba(134,188,37,0.25); color: var(--color-accent); }
+    .btn-row--finish:hover { background: rgba(134,188,37,0.18); }
+    .btn-row--pause   { background: var(--color-bg-raised); border-color: var(--color-border-strong); color: var(--color-text-muted); }
+    .btn-row--pause:hover { background: rgba(255,255,255,0.06); }
+    .btn-row--resume  { background: rgba(74,158,255,0.08); border-color: rgba(74,158,255,0.18); color: #4A9EFF; }
+    .btn-row--resume:hover { background: rgba(74,158,255,0.18); }
+    .btn-row--restore { background: rgba(255,255,255,0.04); border-color: var(--color-border-strong); color: var(--color-text); }
+    .btn-row--restore:hover { background: rgba(74,158,255,0.10); border-color: rgba(74,158,255,0.30); color: #4A9EFF; }
+
+    /* ⋯ menu */
+    .card-menu { position: absolute; top: 8px; right: 8px; }
+    .btn-menu {
+      width: 28px; height: 28px; border-radius: var(--radius-sm);
+      background: transparent; border: 1px solid transparent;
+      color: var(--color-text-muted); cursor: pointer; display: flex; align-items: center;
+      justify-content: center; transition: all var(--motion-fast) var(--ease-out);
+      font-size: 16px; line-height: 1;
+    }
+    .btn-menu:hover { background: var(--color-bg-raised); border-color: var(--color-border-strong); color: var(--color-text); }
+    .card-dropdown {
+      position: absolute; top: 32px; right: 0; z-index: 100;
+      background: var(--color-bg-elevated); border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+      min-width: 200px; overflow: hidden;
+      animation: fade-up 160ms var(--ease-out);
+    }
+    .dd-item {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      font-size: 13px; font-weight: 500; color: var(--color-text);
+      cursor: pointer; border: none; background: transparent; width: 100%; text-align: left;
+      transition: background var(--motion-fast) var(--ease-out);
+      font-family: inherit;
+    }
+    .dd-item:hover { background: var(--color-bg-raised); }
+    .dd-item.danger { color: #FCA5A5; }
+    .dd-item.danger:hover { background: rgba(239,68,68,0.10); }
+    .dd-sep { height: 1px; background: var(--color-border); margin: 4px 0; }
+    .dd-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+    /* Drag-over highlight */
+    .kanban__col.is-drag-over {
+      background: rgba(134,188,37,0.05);
+      border-color: var(--color-border-accent);
+      box-shadow: inset 0 0 0 1px rgba(134, 188, 37, 0.20);
+    }
+    .mission-card.is-dragging { opacity: 0.35; cursor: grabbing; }
+
+    /* Skeleton card */
+    .skel-card { height: 156px; border-radius: var(--radius-md); }
+
+    /* Archive toggle */
+    .archives-section { margin-top: 36px; }
+    .archives-toggle {
+      display: flex; align-items: center; gap: 12px; cursor: pointer;
+      padding: 14px 18px; border-radius: var(--radius-md);
+      background: var(--color-bg-glass); border: 1px solid var(--color-border);
+      backdrop-filter: blur(10px);
+      color: var(--color-text-muted); font-size: 13px; font-weight: 600;
+      transition: all var(--motion-fast) var(--ease-out); user-select: none;
+    }
+    .archives-toggle:hover { background: var(--color-bg-raised); color: var(--color-text); }
+    .archives-toggle .arc-count {
+      font-family: var(--font-mono); font-size: 11px; padding: 3px 9px;
+      background: var(--color-bg-raised); border-radius: var(--radius-pill); color: var(--color-text-muted);
+    }
+    .archives-toggle .arc-chevron { margin-left: auto; transition: transform var(--motion-base) var(--ease-out); }
+    .archives-toggle.is-open .arc-chevron { transform: rotate(180deg); }
+    .archives-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 14px; padding-top: 16px;
+    }
+    .mission-card.is-archived { opacity: 0.6; }
+    .mission-card.is-archived:hover { opacity: 1; }
+    .badge-archived {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.10em;
+      color: var(--color-text-muted); background: var(--color-bg-raised);
+      border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill);
+      padding: 2px 8px; margin-bottom: 6px;
+    }
+
+    /* Modal v2 (override .modal-overlay/.modal from components.css) */
+    .modal-overlay {
+      background: rgba(10, 14, 26, 0.78);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .modal {
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+    }
+    .modal-header { border-bottom: 1px solid var(--color-border); }
+    .modal-footer { border-top: 1px solid var(--color-border); }
+
+    /* Delete modal */
+    .delete-icon {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.30);
+      display: grid; place-items: center; margin: 0 auto 14px;
+    }
+
+    @media (max-width: 1100px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 700px)  { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body class="has-mesh-bg">
+  <div class="app-shell" id="app-shell">
+    <div id="nav-slot"></div>
+
+    <div>
+      <!-- Topbar -->
+      <header class="topbar">
+        <div>
+          <div class="topbar__title">Tableau de bord</div>
+          <div class="topbar__breadcrumb">Vos missions d'audit Active Directory</div>
+        </div>
+        <div class="topbar__spacer"></div>
+        <div class="topbar__actions" x-data="{}">
+          <template x-if="$store && $store.role !== 'auditor'">
+            <span></span>
+          </template>
+        </div>
+      </header>
+
+      <main class="main-content" x-data="dashboardApp()" x-init="init()">
+
+        <!-- ── Top action row ─── -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;">
+          <p style="font-size:13px;color:var(--color-text-muted);margin:0;">Glissez une carte entre colonnes pour changer son statut.</p>
+          <template x-if="!loading && canCreate()">
+            <button class="btn-2026 btn-2026--primary" @click="openCreate()">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Nouvelle mission
+            </button>
+          </template>
+        </div>
+
+        <!-- ── KPI hero ─── -->
+        <div class="stat-grid stagger" x-show="loading">
+          <template x-for="i in 6" :key="i">
+            <div class="stat-card" :style="'--i:'+(i-1)">
+              <div class="skeleton" style="height:14px;width:60%;margin-bottom:14px;"></div>
+              <div class="skeleton" style="height:32px;width:50%;"></div>
+            </div>
+          </template>
+        </div>
+
+        <div class="stat-grid stagger" x-show="!loading">
+          <div class="stat-card" style="--i:0">
+            <div class="stat-card__head">
+              <span class="stat-card__label">Total missions</span>
+              <span class="stat-card__icon">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M3 7h18v13H3zM8 7V4h8v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </span>
+            </div>
+            <div class="stat-card__value" data-count :data-target="stats.total || 0" x-text="stats.total || 0"></div>
+          </div>
+
+          <div class="stat-card" style="--i:1">
+            <div class="stat-card__head">
+              <span class="stat-card__label">En attente</span>
+              <span class="stat-card__icon" style="background: rgba(148,163,184,0.10); color: var(--color-text-muted);">
+                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </span>
+            </div>
+            <div class="stat-card__value" x-text="stats.draft || 0"></div>
+          </div>
+
+          <div class="stat-card" style="--i:2; --top: #4A9EFF;">
+            <div class="stat-card__head">
+              <span class="stat-card__label">En cours</span>
+              <span class="stat-card__icon" style="background: rgba(74,158,255,0.12); color: #4A9EFF;">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </div>
+            <div class="stat-card__value" style="color:#4A9EFF;" x-text="stats.in_progress || 0"></div>
+          </div>
+
+          <div class="stat-card" style="--i:3">
+            <div class="stat-card__head">
+              <span class="stat-card__label">Terminées</span>
+              <span class="stat-card__icon">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </div>
+            <div class="stat-card__value" style="color:var(--color-accent);" x-text="stats.completed || 0"></div>
+          </div>
+
+          <div class="stat-card" style="--i:4">
+            <div class="stat-card__head">
+              <span class="stat-card__label">Chemins analysés</span>
+              <span class="stat-card__icon" style="background: rgba(168,85,247,0.10); color: #C084FC;">
+                <svg viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8l3 7M16 8l-3 7" stroke="currentColor" stroke-width="1.8"/></svg>
+              </span>
+            </div>
+            <div class="stat-card__value" x-text="stats.total_paths || 0"></div>
+          </div>
+
+          <div class="stat-card stat-card--critique" style="--i:5">
+            <div class="stat-card__head">
+              <span class="stat-card__label">Critiques</span>
+              <span class="stat-card__icon" style="background: var(--risk-critique-bg); color: var(--risk-critique);">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L2 22h20L12 2zM12 9v5M12 18h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </div>
+            <div class="stat-card__value" style="color:var(--risk-critique);" x-text="stats.total_critical || 0"></div>
+          </div>
+        </div>
+
+        <template x-if="error">
+          <div class="login-error" style="margin: 16px 0;" x-text="error"></div>
+        </template>
+
+        <!-- ── Kanban ─── -->
+        <div class="section-head" style="margin-top: 8px;">
+          <div>
+            <h2>Missions actives</h2>
+            <p>Glisser-déposer pour passer d'une colonne à l'autre.</p>
+          </div>
+        </div>
+
+        <div class="kanban">
+
+          <!-- En attente -->
+          <div class="kanban__col"
+               @dragover.prevent="onDragOver($event,'draft')"
+               @dragleave="onDragLeave($event)"
+               @drop="onDrop($event,'draft')"
+               :class="dragOverCol === 'draft' ? 'is-drag-over' : ''">
+            <div class="kanban__col-head">
+              <span class="kanban__col-title" style="color: var(--color-text-muted);">● En attente</span>
+              <span class="kanban__count" x-text="byStatus('draft').length"></span>
+            </div>
+            <div class="kanban__col-list">
+              <template x-if="loading">
+                <template x-for="i in 2" :key="i"><div class="skeleton skel-card"></div></template>
+              </template>
+              <template x-if="!loading && byStatus('draft').length === 0">
+                <div class="kanban__empty">Aucune mission en attente</div>
+              </template>
+              <template x-for="e in byStatus('draft')" :key="e.id">
+                <div class="mission-card" data-state="draft" draggable="true"
+                     @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
+                     :class="draggingId === e.id ? 'is-dragging' : ''">
+                  <div class="card-menu" x-show="canManage()">
+                    <button class="btn-menu" @click="toggleMenu(e.id,$event)" title="Options">⋯</button>
+                    <div class="card-dropdown" x-show="openMenuId === e.id" x-cloak @click.stop>
+                      <button class="dd-item" @click="archiveEngagement(e)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                        Archiver la mission
+                      </button>
+                      <template x-if="canDelete()">
+                        <div>
+                          <div class="dd-sep"></div>
+                          <button class="dd-item danger" @click="openDeleteModal(e)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                            Supprimer définitivement
+                          </button>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <div class="mc__top">
+                    <div class="mc__code" x-text="e.code"></div>
+                    <div class="mc__client" x-text="e.client_name"></div>
+                    <div class="mc__desc" x-text="e.description || 'Aucune description'"></div>
+                  </div>
+                  <div class="mc__meta">
+                    <div><div class="mc__meta-val" x-text="e._analyses_count||0"></div><div class="mc__meta-lbl">Analyses</div></div>
+                    <div><div class="mc__meta-val mc__meta-val--red" x-text="e._critical_count||0"></div><div class="mc__meta-lbl">Critiques</div></div>
+                  </div>
+                  <div class="mc__dates">
+                    <span x-text="'Créée ' + fmtDate(e.created_at)"></span>
+                    <span x-text="fmtDate(e.updated_at)"></span>
+                  </div>
+                  <div class="mc__actions">
+                    <a class="btn-row btn-row--open" :href="'/engagement.html?id='+e.id">Ouvrir</a>
+                    <button class="btn-row btn-row--start" @click.stop="changeStatus(e,'in_progress')">Démarrer</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- En cours -->
+          <div class="kanban__col"
+               @dragover.prevent="onDragOver($event,'in_progress')"
+               @dragleave="onDragLeave($event)"
+               @drop="onDrop($event,'in_progress')"
+               :class="dragOverCol === 'in_progress' ? 'is-drag-over' : ''">
+            <div class="kanban__col-head">
+              <span class="kanban__col-title" style="color: #4A9EFF;">● En cours</span>
+              <span class="kanban__count" x-text="byStatus('in_progress').length"></span>
+            </div>
+            <div class="kanban__col-list">
+              <template x-if="loading">
+                <template x-for="i in 2" :key="i"><div class="skeleton skel-card"></div></template>
+              </template>
+              <template x-if="!loading && byStatus('in_progress').length === 0">
+                <div class="kanban__empty">Aucune mission en cours</div>
+              </template>
+              <template x-for="e in byStatus('in_progress')" :key="e.id">
+                <div class="mission-card" data-state="in_progress" draggable="true"
+                     @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
+                     :class="draggingId === e.id ? 'is-dragging' : ''">
+                  <div class="card-menu" x-show="canManage()">
+                    <button class="btn-menu" @click="toggleMenu(e.id,$event)" title="Options">⋯</button>
+                    <div class="card-dropdown" x-show="openMenuId === e.id" x-cloak @click.stop>
+                      <button class="dd-item" @click="archiveEngagement(e)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+                        Archiver la mission
+                      </button>
+                      <template x-if="canDelete()">
+                        <div>
+                          <div class="dd-sep"></div>
+                          <button class="dd-item danger" @click="openDeleteModal(e)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                            Supprimer définitivement
+                          </button>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <div class="mc__top">
+                    <div class="mc__code" x-text="e.code"></div>
+                    <div class="mc__client" x-text="e.client_name"></div>
+                    <div class="mc__desc" x-text="e.description || 'Aucune description'"></div>
+                  </div>
+                  <template x-if="e._running_analysis">
+                    <div style="margin: 0 14px;">
+                      <div style="font-size:10px;color:var(--color-accent);margin-bottom:6px;display:flex;align-items:center;gap:6px;letter-spacing:0.04em;">
+                        <span class="pulse" style="width:8px;height:8px;border-radius:50%;background:var(--color-accent);"></span>
+                        Analyse en cours…
+                      </div>
+                      <div class="mission-card__progress"><span :style="'width:'+(e._running_analysis.progress||20)+'%;'"></span></div>
+                    </div>
+                  </template>
+                  <div class="mc__meta">
+                    <div><div class="mc__meta-val" x-text="e._analyses_count||0"></div><div class="mc__meta-lbl">Analyses</div></div>
+                    <div><div class="mc__meta-val mc__meta-val--red" x-text="e._critical_count||0"></div><div class="mc__meta-lbl">Critiques</div></div>
+                    <div><div class="mc__meta-val mc__meta-val--orange" x-text="e._paths_count||0"></div><div class="mc__meta-lbl">Chemins</div></div>
+                  </div>
+                  <div class="mc__dates">
+                    <span x-text="'Créée ' + fmtDate(e.created_at)"></span>
+                    <span x-text="fmtDate(e.updated_at)"></span>
+                  </div>
+                  <div class="mc__actions">
+                    <a class="btn-row btn-row--open" :href="'/engagement.html?id='+e.id">Ouvrir</a>
+                    <button class="btn-row btn-row--finish" @click.stop="changeStatus(e,'completed')">Terminer</button>
+                    <button class="btn-row btn-row--pause"  @click.stop="changeStatus(e,'draft')">Pause</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- Terminées -->
+          <div class="kanban__col"
+               @dragover.prevent="onDragOver($event,'completed')"
+               @dragleave="onDragLeave($event)"
+               @drop="onDrop($event,'completed')"
+               :class="dragOverCol === 'completed' ? 'is-drag-over' : ''">
+            <div class="kanban__col-head">
+              <span class="kanban__col-title" style="color: var(--color-accent);">● Terminées</span>
+              <span class="kanban__count" x-text="byStatus('completed').length"></span>
+            </div>
+            <div class="kanban__col-list">
+              <template x-if="loading">
+                <template x-for="i in 1" :key="i"><div class="skeleton skel-card"></div></template>
+              </template>
+              <template x-if="!loading && byStatus('completed').length === 0">
+                <div class="kanban__empty">Aucune mission terminée</div>
+              </template>
+              <template x-for="e in byStatus('completed')" :key="e.id">
+                <div class="mission-card" data-state="completed" draggable="true"
+                     @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
+                     :class="draggingId === e.id ? 'is-dragging' : ''">
+                  <div class="card-menu" x-show="canManage()">
+                    <button class="btn-menu" @click="toggleMenu(e.id,$event)" title="Options">⋯</button>
+                    <div class="card-dropdown" x-show="openMenuId === e.id" x-cloak @click.stop>
+                      <button class="dd-item" @click="archiveEngagement(e)">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+                        Archiver la mission
+                      </button>
+                      <template x-if="canDelete()">
+                        <div>
+                          <div class="dd-sep"></div>
+                          <button class="dd-item danger" @click="openDeleteModal(e)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                            Supprimer définitivement
+                          </button>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                  <div class="mc__top">
+                    <div class="mc__code" x-text="e.code"></div>
+                    <div class="mc__client" x-text="e.client_name"></div>
+                    <div class="mc__desc" x-text="e.description || 'Aucune description'"></div>
+                  </div>
+                  <div class="mc__meta">
+                    <div><div class="mc__meta-val" x-text="e._analyses_count||0"></div><div class="mc__meta-lbl">Analyses</div></div>
+                    <div><div class="mc__meta-val mc__meta-val--red" x-text="e._critical_count||0"></div><div class="mc__meta-lbl">Critiques</div></div>
+                    <div><div class="mc__meta-val" x-text="e._paths_count||0"></div><div class="mc__meta-lbl">Chemins</div></div>
+                  </div>
+                  <div class="mc__dates">
+                    <span x-text="'Créée ' + fmtDate(e.created_at)"></span>
+                    <span x-text="fmtDate(e.updated_at)"></span>
+                  </div>
+                  <div class="mc__actions">
+                    <a class="btn-row btn-row--open" :href="'/engagement.html?id='+e.id">Ouvrir</a>
+                    <button class="btn-row btn-row--resume" @click.stop="changeStatus(e,'in_progress')">Reprendre</button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+        </div><!-- /kanban -->
+
+        <!-- Empty state -->
+        <template x-if="!loading && engagements.length === 0">
+          <div style="padding:80px 20px;text-align:center;">
+            <div style="width:72px;height:72px;border-radius:50%;background:rgba(134,188,37,0.10);border:1px solid var(--color-border-accent);display:grid;place-items:center;margin:0 auto 20px;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16" stroke="var(--color-accent)" stroke-width="2.5" stroke-linecap="round"/></svg>
+            </div>
+            <div style="font-size:20px;font-weight:700;margin-bottom:8px;letter-spacing:-0.2px;">Aucune mission active</div>
+            <p style="font-size:13px;color:var(--color-text-muted);max-width:340px;margin:0 auto 24px;line-height:1.6;">Créez votre première mission pour analyser les chemins d'attaque Active Directory.</p>
+            <button class="btn-2026 btn-2026--primary" x-show="canCreate()" @click="openCreate()">Créer une mission</button>
+          </div>
+        </template>
+
+        <!-- ── Archives ─── -->
+        <div class="archives-section" x-show="!loading">
+          <div class="archives-toggle" :class="showArchived ? 'is-open' : ''" @click="toggleArchived()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            Missions archivées
+            <span class="arc-count" x-text="(stats.archived || 0) + ' mission' + ((stats.archived||0) > 1 ? 's' : '')"></span>
+            <svg class="arc-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+
+          <div x-show="showArchived" x-cloak>
+            <template x-if="loadingArchived">
+              <div style="padding:32px;text-align:center;font-size:13px;color:var(--color-text-muted);">Chargement…</div>
+            </template>
+            <template x-if="!loadingArchived && archived.length === 0">
+              <div style="padding:32px;text-align:center;font-size:13px;color:var(--color-text-muted);">Aucune mission archivée</div>
+            </template>
+            <div class="archives-grid" x-show="!loadingArchived && archived.length > 0">
+              <template x-for="e in archived" :key="e.id">
+                <div class="mission-card is-archived" data-state="archived">
+                  <div class="mc__top">
+                    <div class="badge-archived">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+                      Archivée
+                    </div>
+                    <div class="mc__code" x-text="e.code"></div>
+                    <div class="mc__client" x-text="e.client_name"></div>
+                    <div class="mc__desc" x-text="e.description || 'Aucune description'"></div>
+                  </div>
+                  <div class="mc__meta">
+                    <div><div class="mc__meta-val" x-text="e._analyses_count||0"></div><div class="mc__meta-lbl">Analyses</div></div>
+                    <div><div class="mc__meta-val" x-text="e._paths_count||0"></div><div class="mc__meta-lbl">Chemins</div></div>
+                  </div>
+                  <div class="mc__dates">
+                    <span x-text="'Créée ' + fmtDate(e.created_at)"></span>
+                    <span x-text="fmtDate(e.updated_at)"></span>
+                  </div>
+                  <div class="mc__actions">
+                    <button class="btn-row btn-row--restore" @click="restoreEngagement(e)">↻ Restaurer</button>
+                    <template x-if="canDelete()">
+                      <button class="btn-row" style="flex:0;background:rgba(239,68,68,0.10);border-color:rgba(239,68,68,0.25);color:#FCA5A5;" @click="openDeleteModal(e, true)">✕</button>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Create modal ─── -->
+        <div class="modal-overlay" x-show="showModal" x-cloak @click.self="closeCreate()">
+          <div class="modal">
+            <div class="modal-header">
+              <h3 style="font-size:17px;font-weight:700;">Nouvelle mission</h3>
+              <button class="btn-2026 btn-2026--ghost" style="padding:6px 10px;" @click="closeCreate()">✕</button>
+            </div>
+            <div class="modal-body">
+              <template x-if="formError">
+                <div class="login-error" style="margin-bottom:14px;" x-text="formError"></div>
+              </template>
+              <div class="field-2026" style="margin-bottom:14px;">
+                <label>Nom du client</label>
+                <input type="text" x-model="form.client_name" @input="autoFillCode()" placeholder="Acme Corporation" autofocus />
+              </div>
+              <div class="field-2026" style="margin-bottom:14px;">
+                <label>Code mission <span style="font-weight:400;color:var(--color-text-muted);text-transform:none;letter-spacing:0;font-size:11px;">(auto-généré)</span></label>
+                <input type="text" x-model="form.code"
+                       @input="form.code=$event.target.value.toUpperCase().replace(/\s+/g,'-').replace(/[^A-Z0-9\-]/g,'')"
+                       placeholder="AUDIT-2026-0001" style="font-family:var(--font-mono);" spellcheck="false" />
+              </div>
+              <div class="field-2026">
+                <label>Description <span style="color:var(--color-text-muted);font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;">(optionnel)</span></label>
+                <textarea rows="2" x-model="form.description" placeholder="Audit AD on-prem — domaine acme.local…"></textarea>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn-2026 btn-2026--ghost" @click="closeCreate()" :disabled="saving">Annuler</button>
+              <button class="btn-2026 btn-2026--primary" @click="submitCreate()" :disabled="saving">
+                <span x-show="!saving">Créer la mission</span>
+                <span x-show="saving">Création…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Delete modal ─── -->
+        <div class="modal-overlay" x-show="showDeleteModal" x-cloak @click.self="closeDeleteModal()">
+          <div class="modal" style="max-width:460px;">
+            <div class="modal-body" style="padding-top:32px;text-align:center;" x-show="deleteTarget">
+              <div class="delete-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+              </div>
+              <div style="font-size:17px;font-weight:700;margin-bottom:4px;" x-text="deleteTarget && deleteTarget.client_name"></div>
+              <div style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--color-accent);margin-bottom:18px;" x-text="deleteTarget && deleteTarget.code"></div>
+
+              <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius-sm);padding:12px 14px;font-size:12px;color:#FCA5A5;text-align:left;line-height:1.5;margin-bottom:18px;">
+                <strong style="color:#FECACA;">Action irréversible.</strong> Cette suppression effacera définitivement la mission, ses analyses, les chemins d'attaque et les techniques MITRE associées.
+              </div>
+
+              <div class="field-2026" style="text-align:left;">
+                <label>Tapez le code <span x-text="deleteTarget && deleteTarget.code" style="color:var(--color-accent);font-family:var(--font-mono);"></span> pour confirmer</label>
+                <input type="text" x-model="deleteConfirmCode"
+                       :placeholder="deleteTarget && deleteTarget.code"
+                       @keydown.enter="deleteCodeMatches && confirmDelete()"
+                       style="font-family:var(--font-mono);text-align:center;letter-spacing:0.05em;"
+                       spellcheck="false" autocomplete="off" />
+              </div>
+
+              <template x-if="deleteError">
+                <div class="login-error" style="margin-top:14px;" x-text="deleteError"></div>
+              </template>
+            </div>
+            <div class="modal-footer" style="justify-content:space-between;">
+              <button class="btn-2026 btn-2026--ghost" @click="closeDeleteModal()" :disabled="deleting">Annuler</button>
+              <button class="btn-2026" :disabled="!deleteCodeMatches || deleting"
+                      style="background:var(--risk-critique);color:white;border:none;"
+                      @click="confirmDelete()">
+                <span x-show="!deleting">Supprimer définitivement</span>
+                <span x-show="deleting">Suppression…</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <style>[x-cloak]{display:none!important}</style>
+</body>
+</html>

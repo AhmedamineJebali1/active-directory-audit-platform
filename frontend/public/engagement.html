@@ -1,0 +1,762 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mission — AD Audit AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=11" />
+  <link rel="stylesheet" href="/css/redesign.css?v=11" />
+  <link rel="stylesheet" href="/css/base.css?v=11" />
+  <link rel="stylesheet" href="/css/components.css?v=11" />
+  <link rel="stylesheet" href="/css/dashboard.css?v=11" />
+  <script src="/js/api.js?v=11"></script>
+  <script src="/js/auth.js?v=7"></script>
+  <script src="/js/ws_client.js"></script>
+  <script src="/js/upload.js"></script>
+  <script src="/js/engagement.js?v=12"></script>
+  <script src="/js/auth.js?v=11"></script>
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+
+  <style>
+    /* ── Tabs ──────────────────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      gap: 2px;
+      border-bottom: 1px solid var(--color-border);
+      padding: 0 var(--space-7);
+      background: rgba(255,255,255,0.01);
+    }
+    .tab-btn {
+      padding: 14px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-stone);
+      cursor: pointer;
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font-sans);
+    }
+    .tab-btn:hover { color: var(--color-white); }
+    .tab-btn.active { color: var(--color-accent); border-bottom-color: var(--color-accent); }
+    .tab-badge {
+      font-size: 10px; font-weight: 700; font-family: var(--font-mono);
+      padding: 1px 6px; border-radius: 10px;
+      background: rgba(255,255,255,0.06); color: var(--color-stone);
+    }
+    .tab-btn.active .tab-badge { background: var(--color-accent-subtle); color: var(--color-accent); }
+
+    /* ── Stage tracker ─────────────────────────────────── */
+    .stage-track { display: flex; gap: 0; margin-top: 16px; }
+    .stage-item {
+      flex: 1; text-align: center; font-size: 11px; font-weight: 600;
+      padding: 7px 4px; border-radius: 0; position: relative;
+      color: var(--color-stone);
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--color-border);
+      margin-right: -1px;
+      transition: all var(--transition-fast);
+    }
+    .stage-item:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+    .stage-item:last-child  { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin-right: 0; }
+    .stage-item.active  { background: rgba(134,188,37,0.08); color: var(--color-accent); border-color: rgba(134,188,37,0.3); z-index: 1; }
+    .stage-item.done    { background: rgba(134,188,37,0.04); color: rgba(134,188,37,0.55); }
+    .stage-item.failed  { background: rgba(255,59,92,0.08); color: var(--risk-critique); border-color: rgba(255,59,92,0.3); z-index: 1; }
+
+    /* ── Graph container ───────────────────────────────── */
+    .graph-wrap {
+      position: relative;
+      width: 100%;
+      height: 600px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      overflow: hidden;
+      background: #0a0d14;
+    }
+    #cy { width: 100%; height: 100%; }
+
+    .graph-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .graph-toolbar-title {
+      font-size: 13px; font-weight: 600; color: var(--color-white);
+      margin-right: auto;
+    }
+
+    /* Graph legend */
+    .graph-legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      margin-bottom: 12px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--color-stone); }
+    .legend-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .legend-sq   { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .legend-dia  { width: 10px; height: 10px; transform: rotate(45deg); flex-shrink: 0; }
+
+    /* Node info panel (slides in from right) */
+    .node-panel {
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 260px;
+      background: rgba(15,17,23,0.97);
+      border-left: 1px solid var(--color-border);
+      padding: 16px;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform var(--transition-med);
+      z-index: 10;
+    }
+    .node-panel.open { transform: translateX(0); }
+    .node-panel-close {
+      position: absolute; top: 12px; right: 12px;
+      background: none; border: none; color: var(--color-stone);
+      cursor: pointer; font-size: 16px; padding: 4px;
+    }
+    .node-panel-type { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-accent); font-family: var(--font-mono); margin-bottom: 6px; }
+    .node-panel-name { font-size: 15px; font-weight: 700; color: var(--color-white); line-height: 1.3; margin-bottom: 12px; word-break: break-all; }
+    .node-panel-row  { display: flex; justify-content: space-between; font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--color-border); }
+    .node-panel-key  { color: var(--color-stone); }
+    .node-panel-val  { color: var(--color-white); font-weight: 500; }
+
+    /* Path highlight list */
+    .path-highlight-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+    .path-chip {
+      padding: 8px 10px; border-radius: var(--radius-sm); cursor: pointer;
+      border: 1px solid var(--color-border); font-size: 12px;
+      transition: all var(--transition-fast); background: var(--color-surface2);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .path-chip:hover { border-color: var(--color-border2); background: var(--color-surface); }
+    .path-chip.highlighted { border-color: var(--color-accent); background: var(--color-accent-subtle); }
+
+    /* ── Detail layout ─────────────────────────────────── */
+    .detail-layout { display: grid; grid-template-columns: 1fr 240px; gap: 20px; align-items: start; }
+    @media (max-width: 900px) { .detail-layout { grid-template-columns: 1fr; } }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2px dashed var(--color-border2);
+      border-radius: var(--radius-lg);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--color-accent);
+      background: var(--color-accent-subtle);
+    }
+    .upload-zone-icon { color: var(--color-stone); margin-bottom: 12px; }
+    .upload-zone-text { font-size: 14px; font-weight: 600; color: var(--color-white); margin-bottom: 4px; }
+    .upload-zone-hint { font-size: 12px; color: var(--color-stone); }
+    .upload-demo-link {
+      background: none; border: none; cursor: pointer;
+      font-size: 13px; color: var(--color-accent); font-family: var(--font-sans);
+      text-decoration: underline; margin-top: 14px;
+    }
+
+    /* Progress bar */
+    .progress-bar-wrap { height: 6px; background: var(--color-border); border-radius: 3px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 3px; background: var(--color-accent); transition: width 300ms ease; }
+
+    /* stat cards */
+    .stat-card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-sm); }
+    .stat-card.accent  { border-left: 3px solid var(--color-accent); }
+    .stat-card.critique { border-left: 3px solid var(--risk-critique); }
+    .stat-card.eleve   { border-left: 3px solid var(--risk-eleve); }
+    .stat-card.moyen   { border-left: 3px solid var(--risk-moyen); }
+    .stat-number { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; color: var(--color-white); font-variant-numeric: tabular-nums; }
+    .stat-label  { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-stone); margin-top: 4px; }
+
+    /* status pill */
+    .status-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+    .status-pending        { background: rgba(255,255,255,0.06); color: var(--color-stone); }
+    .status-ingesting,
+    .status-extracting_paths,
+    .status-analyzing      { background: rgba(74,158,255,0.12); color: #4A9EFF; }
+    .status-completed      { background: var(--color-accent-subtle); color: var(--color-accent); }
+    .status-failed         { background: rgba(255,59,92,0.12); color: var(--risk-critique); }
+    .status-draft          { background: rgba(255,255,255,0.06); color: var(--color-stone); }
+    .status-in_progress    { background: rgba(74,158,255,0.12); color: #4A9EFF; }
+    .status-ldap_connecting,
+    .status-ldap_users,
+    .status-ldap_computers,
+    .status-ldap_groups,
+    .status-ldap_acls,
+    .status-ldap_building_graph { background: rgba(187,119,255,0.12); color: #BB77FF; }
+
+    /* Graph empty state */
+    .graph-empty {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; color: var(--color-stone); gap: 12px; padding: 40px;
+      text-align: center;
+    }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-top-color: var(--color-accent);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+  </style>
+</head>
+<body class="has-mesh-bg">
+  <div class="app-shell" id="app-shell">
+    <div id="nav-slot"></div>
+
+    <div>
+      <header class="topbar">
+        <div>
+          <div class="topbar__breadcrumb"><a href="/dashboard.html" style="color:inherit;text-decoration:none;">Tableau de bord</a> / Mission</div>
+          <div class="topbar__title" x-data="{}">Mission</div>
+        </div>
+        <div class="topbar__spacer"></div>
+      </header>
+
+  <div class="page-container" x-data="engagementApp()" x-init="init()">
+
+    <!-- Loading -->
+    <template x-if="loading">
+      <div style="display:flex;justify-content:center;padding:80px;"><span class="spinner" style="width:32px;height:32px;border-width:3px;"></span></div>
+    </template>
+
+    <template x-if="!loading && engagement">
+      <div>
+
+        <!-- ── Page header ──────────────────────────────── -->
+        <div class="page-header">
+          <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+            <a class="btn btn-ghost btn-sm" href="/dashboard.html" style="margin-top:4px;">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9 2L4 7l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Missions
+            </a>
+            <div style="flex:1;">
+              <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--color-accent);font-family:var(--font-mono);margin-bottom:4px;" x-text="engagement.code"></div>
+              <h1 class="page-title" x-text="engagement.client_name"></h1>
+              <p class="page-subtitle" x-text="engagement.description || ''"></p>
+            </div>
+            <span class="status-pill" :class="'status-'+engagement.status" x-text="statusLabel(engagement.status)" style="margin-top:6px;"></span>
+          </div>
+
+          <!-- Stats row -->
+          <template x-if="stats">
+            <div class="grid-4" style="margin-top:24px;">
+              <div class="stat-card accent">
+                <div class="stat-number" x-text="stats.total_paths||0"></div>
+                <div class="stat-label">Chemins détectés</div>
+              </div>
+              <div class="stat-card critique">
+                <div class="stat-number" x-text="(stats.by_risk_level&&stats.by_risk_level.critique)||0"></div>
+                <div class="stat-label">Critiques</div>
+              </div>
+              <div class="stat-card eleve">
+                <div class="stat-number" x-text="(stats.by_risk_level&&stats.by_risk_level.eleve)||0"></div>
+                <div class="stat-label">Élevés</div>
+              </div>
+              <div class="stat-card moyen">
+                <div class="stat-number" x-text="stats.avg_global_score||'—'"></div>
+                <div class="stat-label">Score moyen / 10</div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- ── Tab bar ──────────────────────────────────── -->
+        <div class="tab-bar">
+          <button class="tab-btn" :class="activeTab==='analyse'?'active':''" @click="switchTab('analyse')">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M4 6.5h5M6.5 4v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            Analyse
+          </button>
+          <button class="tab-btn" :class="activeTab==='graph'?'active':''" @click="switchTab('graph')">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="2.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="10.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M4 6.5h3.5M4.2 5.8l6-2.8M4.2 7.2l6 2.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            Graphe AD
+            <span class="tab-badge" x-text="graphStats ? graphStats.total_nodes + ' nœuds' : ''"></span>
+          </button>
+          <button class="tab-btn" :class="activeTab==='paths'?'active':''" @click="switchTab('paths')">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 2h9M2 6.5h6M2 11h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            Chemins d'attaque
+            <span class="tab-badge" x-text="paths.length ? paths.length : ''"></span>
+          </button>
+        </div>
+
+        <!-- ── Tab content ──────────────────────────────── -->
+        <div class="page-content">
+
+          <template x-if="error">
+            <div class="alert alert-error" style="margin-bottom:20px;" x-text="error"></div>
+          </template>
+
+          <!-- ═══ TAB: ANALYSE ════════════════════════════ -->
+          <div x-show="activeTab === 'analyse'">
+            <div class="detail-layout">
+              <div>
+
+                <!-- Source toggle -->
+                <div class="card" x-show="canUpload() && (!activeAnalysis || activeAnalysis.status === 'failed')" style="margin-bottom:16px;">
+                  <div class="card-body" style="padding:14px 16px;">
+                    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);margin-bottom:10px;">Méthode de collecte</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                      <button class="btn btn-sm" :class="sourceMode==='json'?'btn-primary':'btn-secondary'" @click="sourceMode='json'">
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4 5h5M4 7.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                        Import JSON BloodHound
+                      </button>
+                      <button class="btn btn-sm" :class="sourceMode==='ldap'?'btn-primary':'btn-secondary'" @click="sourceMode='ldap'">
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="3.5" width="5" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="7" y="1" width="5" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="7" y="8.5" width="5" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M6 5h.5M6.5 2.5v7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                        Collecte Active Directory live
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Upload card (JSON mode) -->
+                <div class="card" x-show="sourceMode==='json' && canUpload() && (!activeAnalysis || activeAnalysis.status === 'failed')" style="margin-bottom:20px;">
+                  <div class="card-header">
+                    <div>
+                      <h3 style="font-size:15px;font-weight:600;">Importer un export BloodHound</h3>
+                      <p style="font-size:12px;color:var(--color-stone);margin-top:2px;">Fichier JSON exporté depuis SharpHound ou BloodHound CE · max 100 MB</p>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <div id="upload-zone" class="upload-zone">
+                      <div class="upload-zone-icon">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 22V8M9 15l7-7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 26h24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                      </div>
+                      <div class="upload-zone-text">Glissez votre fichier ici ou cliquez pour parcourir</div>
+                      <div class="upload-zone-hint">Export BloodHound v4 ou v5 au format JSON</div>
+                    </div>
+                    <input type="file" id="upload-input" accept=".json,application/json" style="display:none" />
+                    <div style="text-align:center;" x-show="!uploadingPercent">
+                      <button class="upload-demo-link" @click="useDemoFile()">Utiliser le fichier de démonstration →</button>
+                    </div>
+                    <template x-if="uploadingPercent !== null">
+                      <div style="margin-top:16px;">
+                        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+                          <span style="color:var(--color-stone);">Envoi en cours…</span>
+                          <span x-text="uploadingPercent + '%'"></span>
+                        </div>
+                        <div class="progress-bar-wrap"><div class="progress-bar-fill" :style="'width:'+uploadingPercent+'%'"></div></div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- LDAP collection form -->
+                <div class="card" x-show="sourceMode==='ldap' && canUpload() && (!activeAnalysis || activeAnalysis.status === 'failed')" style="margin-bottom:20px;">
+                  <div class="card-header">
+                    <div>
+                      <h3 style="font-size:15px;font-weight:600;">Collecte Active Directory</h3>
+                      <p style="font-size:12px;color:var(--color-stone);margin-top:2px;">Connexion directe au contrôleur de domaine via LDAP — tout automatisé</p>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <!-- Security notice -->
+                    <div style="display:flex;gap:10px;padding:10px 14px;background:rgba(255,205,0,0.04);border:1px solid rgba(255,205,0,0.18);border-radius:var(--radius-sm);margin-bottom:20px;">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:var(--risk-moyen);flex-shrink:0;margin-top:1px;"><path d="M8 2L14 13H2L8 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6v3M8 11v.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                      <span style="font-size:12px;color:var(--color-stone);line-height:1.55;">Les données collectées seront transmises à l'agent IA configuré. Activez le mode <strong style="color:var(--color-white);">Ollama (local)</strong> dans les paramètres pour une analyse 100% confidentielle.</span>
+                    </div>
+                    <!-- Form grid -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+                      <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--color-stone);display:block;margin-bottom:6px;">Contrôleur de domaine <span style="color:var(--risk-critique)">*</span></label>
+                        <input type="text" class="form-control" x-model="ldapForm.dc_host" placeholder="192.168.1.10 ou dc01.corp.local" autocomplete="off" />
+                      </div>
+                      <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--color-stone);display:block;margin-bottom:6px;">Domaine AD <span style="color:var(--risk-critique)">*</span></label>
+                        <input type="text" class="form-control" x-model="ldapForm.domain" placeholder="corp.local" autocomplete="off" />
+                      </div>
+                      <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--color-stone);display:block;margin-bottom:6px;">Nom d'utilisateur <span style="color:var(--risk-critique)">*</span></label>
+                        <input type="text" class="form-control" x-model="ldapForm.username" placeholder="john.doe (sans préfixe domaine)" autocomplete="off" />
+                      </div>
+                      <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--color-stone);display:block;margin-bottom:6px;">Mot de passe <span style="color:var(--risk-critique)">*</span></label>
+                        <input type="password" class="form-control" x-model="ldapForm.password" placeholder="••••••••" autocomplete="new-password" />
+                      </div>
+                      <div>
+                        <label style="font-size:12px;font-weight:600;color:var(--color-stone);display:block;margin-bottom:6px;">Port LDAP</label>
+                        <input type="number" class="form-control" x-model.number="ldapForm.port" min="1" max="65535" />
+                      </div>
+                      <div style="display:flex;align-items:flex-end;padding-bottom:6px;">
+                        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:500;color:var(--color-stone);">
+                          <div style="position:relative;width:38px;height:20px;flex-shrink:0;">
+                            <input type="checkbox" x-model="ldapForm.use_ssl" style="opacity:0;position:absolute;inset:0;cursor:pointer;z-index:1;margin:0;" />
+                            <div :style="ldapForm.use_ssl?'background:var(--color-accent)':'background:var(--color-border2)'" style="width:38px;height:20px;border-radius:10px;transition:background 150ms;position:absolute;inset:0;"></div>
+                            <div :style="ldapForm.use_ssl?'left:20px':'left:2px'" style="position:absolute;top:2px;width:16px;height:16px;background:white;border-radius:50%;transition:left 150ms;pointer-events:none;"></div>
+                          </div>
+                          LDAPS (port 636)
+                        </label>
+                      </div>
+                    </div>
+                    <!-- Submit -->
+                    <div style="margin-top:20px;display:flex;gap:12px;align-items:center;">
+                      <button class="btn btn-primary" @click="submitLdapCollect()" :disabled="!ldapFormValid() || ldapCollecting">
+                        <template x-if="ldapCollecting">
+                          <span class="spinner" style="width:13px;height:13px;border-width:2px;margin-right:4px;"></span>
+                        </template>
+                        <template x-if="!ldapCollecting">
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="margin-right:4px;"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 7l2 2 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </template>
+                        Lancer la collecte AD
+                      </button>
+                      <span x-show="!ldapFormValid() && !ldapCollecting" style="font-size:12px;color:var(--color-stone);">Remplissez tous les champs requis</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Analysis progress card -->
+                <template x-if="activeAnalysis && activeAnalysis.status !== 'failed'">
+                  <div class="card" style="margin-bottom:20px;">
+                    <div class="card-header">
+                      <div>
+                        <h3 style="font-size:15px;font-weight:600;" x-text="activeAnalysis.status==='completed' ? 'Analyse complétée' : 'Analyse en cours'"></h3>
+                        <p style="font-size:12px;color:var(--color-stone);margin-top:2px;" x-text="activeAnalysis.source_filename||''"></p>
+                      </div>
+                      <span class="status-pill" :class="'status-'+activeAnalysis.status" x-text="statusLabel(activeAnalysis.status)"></span>
+                    </div>
+                    <div class="card-body">
+                      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+                        <span style="color:var(--color-stone);" x-text="progressMessage"></span>
+                        <span style="font-weight:700;" x-text="progress + '%'"></span>
+                      </div>
+                      <div class="progress-bar-wrap" style="height:8px;">
+                        <div class="progress-bar-fill" :style="'width:'+progress+'%; background:'+(progressFailed?'var(--risk-critique)':'var(--color-accent)')"></div>
+                      </div>
+
+                      <div class="stage-track">
+                        <template x-for="s in currentStages()" :key="s.key">
+                          <div class="stage-item" :class="stageClass(s.key)" x-text="s.label"></div>
+                        </template>
+                      </div>
+
+                      <template x-if="stageExplanation()">
+                        <div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:12px;color:var(--color-stone);line-height:1.6;" x-text="stageExplanation()"></div>
+                      </template>
+
+                      <template x-if="activeAnalysis.status === 'completed'">
+                        <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+                          <button class="btn btn-primary" @click="downloadReport(activeAnalysis)">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v7M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Télécharger le rapport PDF
+                          </button>
+                          <button class="btn btn-secondary btn-sm" @click="switchTab('graph')">
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="2.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="10.5" cy="10.5" r="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M4 6.5h3.5M4.2 5.8l6-2.8M4.2 7.2l6 2.8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                            Voir le graphe AD
+                          </button>
+                          <button class="btn btn-secondary btn-sm" @click="switchTab('paths')">Voir les chemins</button>
+                          <button class="btn btn-ghost btn-sm" @click="resetForNewAnalysis()">Nouvelle analyse</button>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- Info if no analysis yet -->
+                <template x-if="!activeAnalysis && analyses.length === 0">
+                  <div class="card">
+                    <div class="card-body" style="padding:40px;text-align:center;">
+                      <div style="font-size:14px;color:var(--color-stone);line-height:1.7;">
+                        Importez un export BloodHound (JSON) pour lancer l'analyse automatique des chemins d'attaque Active Directory.
+                        <br/><br/>
+                        Le pipeline analysera le graphe, extraira les chemins critiques, les mappera sur MITRE ATT&CK, puis les soumettra à l'agent IA pour évaluation.
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
+              </div>
+
+              <!-- Sidebar: analysis history -->
+              <aside>
+                <div class="card">
+                  <div class="card-header">
+                    <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);">Historique</h3>
+                  </div>
+                  <div class="card-body" style="padding:4px 0;">
+                    <template x-if="analyses.length === 0">
+                      <div style="padding:20px 16px;text-align:center;font-size:13px;color:var(--color-stone);">Aucune analyse</div>
+                    </template>
+                    <template x-for="a in analyses" :key="a.id">
+                      <div @click="selectAnalysis(a)"
+                           :style="(activeAnalysis&&activeAnalysis.id===a.id)?'background:var(--color-accent-subtle);border-left:3px solid var(--color-accent);':'border-left:3px solid transparent;'"
+                           style="padding:12px 16px;cursor:pointer;transition:background var(--transition-fast);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:8px;">
+                          <span style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;" x-text="a.source_filename||'Analyse'"></span>
+                          <span class="status-pill" :class="'status-'+a.status" x-text="statusLabel(a.status)" style="font-size:9px;flex-shrink:0;padding:2px 7px;"></span>
+                        </div>
+                        <div style="font-size:11px;color:var(--color-stone);" x-text="formatDate(a.started_at)"></div>
+                        <template x-if="a.total_paths != null">
+                          <div style="font-size:11px;color:rgba(134,188,37,0.6);margin-top:2px;" x-text="a.total_paths + ' chemins'"></div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+
+          <!-- ═══ TAB: GRAPHE AD ══════════════════════════ -->
+          <div x-show="activeTab === 'graph'">
+
+            <template x-if="!activeAnalysis || activeAnalysis.status !== 'completed'">
+              <div class="card">
+                <div class="card-body" style="padding:60px;text-align:center;">
+                  <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style="margin-bottom:16px;opacity:0.2;"><circle cx="10" cy="24" r="6" stroke="white" stroke-width="2"/><circle cx="38" cy="10" r="6" stroke="white" stroke-width="2"/><circle cx="38" cy="38" r="6" stroke="white" stroke-width="2"/><path d="M16 24h8M16.8 21l20-10M16.8 27l20 10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>
+                  <div style="font-size:15px;font-weight:600;margin-bottom:8px;">Aucune analyse disponible</div>
+                  <p style="font-size:13px;color:var(--color-stone);">Lancez une analyse depuis l'onglet <strong style="color:var(--color-white)">Analyse</strong> pour visualiser le graphe Active Directory.</p>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="activeAnalysis && activeAnalysis.status === 'completed'">
+              <div>
+                <!-- Legend -->
+                <div class="graph-legend">
+                  <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);margin-right:8px;">Nœuds :</span>
+                  <div class="legend-item"><div class="legend-dot" style="background:#4A9EFF;"></div>Utilisateur</div>
+                  <div class="legend-item"><div class="legend-sq" style="background:#8888FF;"></div>Ordinateur</div>
+                  <div class="legend-item"><div class="legend-dia" style="background:#BB77FF;"></div>Groupe</div>
+                  <div class="legend-item"><div class="legend-dot" style="background:#FF3B5C;"></div>Cible privilégiée</div>
+                  <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);margin-left:16px;margin-right:8px;">Chemins :</span>
+                  <div class="legend-item"><div style="width:24px;height:2px;background:#FF3B5C;border-radius:1px;"></div>Critique</div>
+                  <div class="legend-item"><div style="width:24px;height:2px;background:#FF8C00;border-radius:1px;"></div>Élevé</div>
+                  <div class="legend-item"><div style="width:24px;height:2px;background:rgba(255,255,255,0.2);border-radius:1px;"></div>Autres</div>
+                </div>
+
+                <!-- Toolbar -->
+                <div class="graph-toolbar">
+                  <span class="graph-toolbar-title" x-text="graphStats ? graphStats.total_nodes + ' nœuds · ' + graphStats.total_edges + ' relations · ' + graphStats.total_paths + ' chemins d\'attaque' : 'Chargement…'"></span>
+                  <button class="btn btn-secondary btn-sm" @click="graphFitView()" title="Centrer la vue">Centrer</button>
+                  <button class="btn btn-secondary btn-sm" @click="graphReset()" title="Réinitialiser la sélection">Réinitialiser</button>
+                  <button class="btn btn-secondary btn-sm" @click="graphExportPng()">Exporter PNG</button>
+                  <select class="form-control" style="width:auto;font-size:12px;padding:6px 10px;" x-model="graphLayout" @change="applyGraphLayout()">
+                    <option value="breadthfirst">Hiérarchique</option>
+                    <option value="circle">Circulaire</option>
+                    <option value="grid">Grille</option>
+                    <option value="cose">Force (automatique)</option>
+                  </select>
+                </div>
+
+                <!-- Graph canvas -->
+                <div class="graph-wrap">
+                  <template x-if="graphLoading">
+                    <div style="display:flex;align-items:center;justify-content:center;height:100%;gap:12px;color:var(--color-stone);">
+                      <span class="spinner"></span>
+                      Chargement du graphe…
+                    </div>
+                  </template>
+                  <div id="cy" x-show="!graphLoading"></div>
+
+                  <!-- Node info panel -->
+                  <div class="node-panel" :class="selectedNode ? 'open' : ''">
+                    <button class="node-panel-close" @click="selectedNode = null">✕</button>
+                    <template x-if="selectedNode">
+                      <div>
+                        <div class="node-panel-type" x-text="selectedNode.type"></div>
+                        <div class="node-panel-name" x-text="selectedNode.label"></div>
+                        <div class="node-panel-row">
+                          <span class="node-panel-key">Privilégié</span>
+                          <span class="node-panel-val" x-text="selectedNode.is_privileged ? 'Oui' : 'Non'" :style="selectedNode.is_privileged ? 'color:var(--risk-critique)' : ''"></span>
+                        </div>
+                        <template x-if="selectedNode.risk_level">
+                          <div class="node-panel-row">
+                            <span class="node-panel-key">Risque max</span>
+                            <span class="node-panel-val" x-text="riskLabel(selectedNode.risk_level)" :style="'color:'+riskColor(selectedNode.risk_level)"></span>
+                          </div>
+                        </template>
+                        <template x-if="nodeAttackPaths().length > 0">
+                          <div style="margin-top:12px;">
+                            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);margin-bottom:8px;">Chemins impliqués</div>
+                            <div class="path-highlight-list">
+                              <template x-for="p in nodeAttackPaths()" :key="p.path_id">
+                                <div class="path-chip" :class="highlightedPath===p.path_id?'highlighted':''" @click="highlightPath(p)">
+                                  <span :style="'color:'+riskColor(p.risk_level);width:8px;height:8px;border-radius:50%;background:'+riskColor(p.risk_level)+';flex-shrink:0;'" style="display:inline-block;"></span>
+                                  <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="p.source_node + ' → ' + p.target_node"></span>
+                                  <span style="font-family:var(--font-mono);font-size:10px;color:var(--color-stone);" x-text="p.global_score ? p.global_score.toFixed(1) : ''"></span>
+                                </div>
+                              </template>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Attack path list below graph -->
+                <template x-if="graphPaths && graphPaths.length > 0">
+                  <div style="margin-top:16px;">
+                    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);margin-bottom:10px;">
+                      Chemins d'attaque — cliquez pour surligner sur le graphe
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                      <template x-for="p in graphPaths" :key="p.path_id">
+                        <div class="path-chip" :class="highlightedPath===p.path_id?'highlighted':''" @click="highlightPath(p)" style="padding:10px 14px;">
+                          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;" :style="'background:'+riskColor(p.risk_level)"></span>
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:12px;font-weight:600;color:var(--color-white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="p.source_node + '  →  ' + p.target_node"></div>
+                            <div style="font-size:11px;color:var(--color-stone);margin-top:2px;" x-text="p.length + ' sauts · ' + riskLabel(p.risk_level)"></div>
+                          </div>
+                          <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;" :style="'color:'+riskColor(p.risk_level)" x-text="p.global_score ? p.global_score.toFixed(1)+'/10' : '—'"></span>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
+
+              </div>
+            </template>
+          </div>
+
+          <!-- ═══ TAB: CHEMINS D'ATTAQUE ══════════════════ -->
+          <div x-show="activeTab === 'paths'">
+
+            <!-- Remediation info banner -->
+            <template x-if="paths.length > 0 && !remediationBannerDismissed">
+              <div class="card" style="margin-bottom:16px;border-left:3px solid var(--color-accent);">
+                <div class="card-body" style="display:flex;gap:14px;align-items:flex-start;padding:14px 18px;">
+                  <div style="flex-shrink:0;width:32px;height:32px;border-radius:50%;background:rgba(134,188,37,0.15);display:flex;align-items:center;justify-content:center;">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="#86BC25" stroke-width="1.4"/><path d="M8 5v3.5M8 11h.01" stroke="#86BC25" stroke-width="1.6" stroke-linecap="round"/></svg>
+                  </div>
+                  <div style="flex:1;">
+                    <div style="font-size:14px;font-weight:600;color:var(--color-text);margin-bottom:4px;">Comment fonctionne la mitigation</div>
+                    <div style="font-size:13px;color:var(--color-text-muted);line-height:1.55;">
+                      Pour chaque chemin d'attaque, AD Audit AI génère un <strong style="color:var(--color-text);">guide de mitigation Markdown</strong> structuré : explication métier, questions à se poser avant d'agir, options classées de la moins à la plus invasive (Surveiller → Restreindre → Reconfigurer → Supprimer), et commandes PowerShell de référence.<br/>
+                      En AD, un chemin d'attaque est presque toujours une <strong style="color:var(--color-text);">mauvaise configuration</strong>, pas une vulnérabilité — la plateforme <strong style="color:var(--color-text);">ne modifie jamais votre AD</strong> : vous validez chaque action en équipe et appliquez manuellement.
+                    </div>
+                  </div>
+                  <button class="btn btn-ghost btn-sm" @click="remediationBannerDismissed = true" title="Masquer" style="flex-shrink:0;padding:4px 8px;">×</button>
+                </div>
+              </div>
+            </template>
+
+            <!-- Remediation action card -->
+            <template x-if="paths.length > 0">
+              <div class="card" style="margin-bottom:16px;">
+                <div class="card-body" style="padding:18px 20px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+                  <div style="flex:1;min-width:240px;">
+                    <div style="font-size:14px;font-weight:600;color:var(--color-text);margin-bottom:3px;">Plan de mitigation</div>
+                    <div style="font-size:12px;color:var(--color-text-muted);">Téléchargez les guides de mitigation Markdown et le rapport d'audit.</div>
+                  </div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <button class="btn-2026 btn-2026--primary" style="padding:9px 14px;font-size:12px;" @click="downloadBundle()" :disabled="bundleDownloading">
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v8M3 6.5l3.5 3 3.5-3M2 11.5h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      <span x-text="bundleDownloading ? 'Préparation…' : 'Tous les guides (ZIP)'"></span>
+                    </button>
+                    <button class="btn-2026 btn-2026--ghost" style="padding:9px 14px;font-size:12px;" @click="downloadPdf()" :disabled="pdfDownloading">
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 1.5h5l3 3v7a.5.5 0 0 1-.5.5h-7.5a.5.5 0 0 1-.5-.5v-9.5a.5.5 0 0 1 .5-.5z" stroke="currentColor" stroke-width="1.2"/><path d="M8 1.5v3h3" stroke="currentColor" stroke-width="1.2"/></svg>
+                      <span x-text="pdfDownloading ? 'Génération…' : 'Rapport PDF'"></span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="paths.length === 0 && !pathsLoading">
+              <div class="card">
+                <div class="card-body" style="padding:60px;text-align:center;">
+                  <div style="font-size:15px;font-weight:600;margin-bottom:8px;">Aucun chemin disponible</div>
+                  <p style="font-size:13px;color:var(--color-stone);">Lancez une analyse pour extraire les chemins d'attaque.</p>
+                </div>
+              </div>
+            </template>
+
+            <template x-if="paths.length > 0 || pathsLoading">
+              <div class="card">
+                <div class="card-header">
+                  <h3 style="font-size:15px;font-weight:600;">
+                    Chemins d'attaque
+                    <span style="font-weight:400;color:var(--color-stone);font-size:13px;margin-left:6px;" x-text="paths.length ? '('+paths.length+')' : ''"></span>
+                  </h3>
+                  <select class="form-control" style="width:auto;padding:6px 10px;font-size:13px;" x-model="filterRisk" @change="applyFilter()">
+                    <option value="">Tous niveaux</option>
+                    <option value="critique">Critique</option>
+                    <option value="eleve">Élevé</option>
+                    <option value="moyen">Moyen</option>
+                    <option value="faible">Faible</option>
+                  </select>
+                </div>
+                <div class="card-body" style="padding:0;">
+                  <template x-if="pathsLoading">
+                    <div style="padding:40px;text-align:center;"><span class="spinner"></span></div>
+                  </template>
+                  <template x-if="!pathsLoading">
+                    <div class="table-container" style="border:none;border-radius:0;">
+                      <table class="data-table">
+                        <thead>
+                          <tr>
+                            <th style="width:32px;">#</th>
+                            <th>Source</th>
+                            <th>Cible</th>
+                            <th>Sauts</th>
+                            <th>Score</th>
+                            <th>Risque</th>
+                            <th>MITRE</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template x-for="(p, idx) in paths" :key="p.id">
+                            <tr>
+                              <td style="color:var(--color-stone);font-family:var(--font-mono);font-size:11px;" x-text="idx+1"></td>
+                              <td style="font-family:var(--font-mono);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="p.source_node" x-text="p.source_node"></td>
+                              <td style="font-family:var(--font-mono);font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="p.target_node" x-text="p.target_node"></td>
+                              <td style="color:var(--color-stone);" x-text="p.length"></td>
+                              <td><strong :style="'color:'+scoreColor(p.global_score)" x-text="formatScore(p.global_score)"></strong></td>
+                              <td>
+                                <span class="badge" :class="riskBadgeClass(p.risk_level)" x-text="riskLabel(p.risk_level)"></span>
+                              </td>
+                              <td style="color:var(--color-stone);font-size:12px;" x-text="(p.mitre_techniques||[]).length + ' tech.'"></td>
+                              <td style="text-align:right;white-space:nowrap;">
+                                <button class="btn btn-ghost btn-sm" @click="highlightPathById(p.id)" title="Voir sur le graphe" style="margin-right:4px;">
+                                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="3" cy="6" r="1.5" stroke="currentColor" stroke-width="1.2"/><circle cx="9" cy="2.5" r="1.5" stroke="currentColor" stroke-width="1.2"/><circle cx="9" cy="9.5" r="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 6h2M4.6 5.4l4-2.5M4.6 6.6l4 2.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                                </button>
+                                <button class="btn btn-ghost btn-sm" @click="downloadPathScript(p.id)" title="Télécharger le guide de mitigation Markdown" style="margin-right:4px;color:var(--color-accent);">
+                                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 1.5h4l2.5 2.5v6a.5.5 0 0 1-.5.5h-6a.5.5 0 0 1-.5-.5v-8a.5.5 0 0 1 .5-.5z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 1.5v2.5h2.5" stroke="currentColor" stroke-width="1.1"/><path d="M4.5 6.5l1.5 1.5L4.5 9.5M7 9.5h.01" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
+                                  Guide
+                                </button>
+                                <a class="btn btn-secondary btn-sm" :href="'/path_detail.html?analysis_id='+p.analysis_id+'&id='+p.id">Détail</a>
+                              </td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </table>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+          </div>
+          <!-- /tabs -->
+
+        </div><!-- /page-content -->
+      </div>
+    </template>
+
+  </div><!-- /page-container -->
+    </div>
+  </div><!-- /app-shell -->
+  <style>[x-cloak]{display:none!important}</style>
+</body>
+</html>

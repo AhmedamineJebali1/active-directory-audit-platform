@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AD Audit AI — Connexion</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=11" />
+  <link rel="stylesheet" href="/css/redesign.css?v=11" />
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <script src="/js/api.js?v=11"></script>
+  <style>
+    /* Page-specific layout — no extra CSS file needed */
+    .login-page {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    /* Animated SVG mesh + grid lines (pure CSS, GPU only) */
+    .login-grid {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(134, 188, 37, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(134, 188, 37, 0.06) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%);
+      animation: grid-shift 30s linear infinite;
+    }
+    @keyframes grid-shift {
+      from { background-position: 0 0, 0 0; }
+      to   { background-position: 56px 56px, 56px 56px; }
+    }
+
+    /* Floating accent orbs */
+    .orb {
+      position: fixed;
+      width: 380px; height: 380px;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.55;
+      z-index: -1;
+      pointer-events: none;
+      animation: orb-float 18s ease-in-out infinite alternate;
+    }
+    .orb--1 { top: -120px; left: -120px; background: radial-gradient(circle, rgba(134, 188, 37, 0.45), transparent 70%); }
+    .orb--2 { bottom: -120px; right: -160px; background: radial-gradient(circle, rgba(59, 130, 246, 0.30), transparent 70%); animation-delay: -6s; }
+    .orb--3 { top: 30%; right: 20%; width: 280px; height: 280px; background: radial-gradient(circle, rgba(168, 85, 247, 0.20), transparent 70%); animation-delay: -12s; }
+    @keyframes orb-float {
+      0%   { transform: translate3d(0, 0, 0) scale(1); }
+      100% { transform: translate3d(40px, -30px, 0) scale(1.15); }
+    }
+
+    /* Two-column shell on desktop */
+    .login-shell {
+      width: 100%;
+      max-width: 1080px;
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 0;
+      align-items: stretch;
+      animation: fade-up 600ms var(--ease-out) both;
+    }
+    @media (max-width: 900px) {
+      .login-shell { grid-template-columns: 1fr; max-width: 480px; }
+      .login-shell__brand { display: none; }
+    }
+
+    .login-shell__brand {
+      padding: 56px 48px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      gap: 32px;
+      border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+      background:
+        linear-gradient(160deg, rgba(134, 188, 37, 0.10) 0%, transparent 50%),
+        var(--color-bg-glass);
+      border: 1px solid var(--color-border);
+      border-right: none;
+      backdrop-filter: blur(18px) saturate(140%);
+      -webkit-backdrop-filter: blur(18px) saturate(140%);
+    }
+    .login-shell__brand h1 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin: 0;
+    }
+    .login-shell__brand p { color: var(--color-text-muted); font-size: 14px; line-height: 1.65; }
+
+    .feature-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
+    .feature-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      font-size: 13px;
+      color: var(--color-text);
+    }
+    .feature-list li svg {
+      flex: 0 0 18px;
+      width: 18px; height: 18px;
+      color: var(--color-accent);
+      margin-top: 1px;
+    }
+    .login-shell__brand small {
+      font-size: 11px;
+      color: var(--color-text-dim);
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    .login-shell__form {
+      padding: 48px 44px;
+      background: var(--color-bg-glass);
+      border: 1px solid var(--color-border);
+      border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
+      backdrop-filter: blur(18px) saturate(140%);
+      -webkit-backdrop-filter: blur(18px) saturate(140%);
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    @media (max-width: 900px) {
+      .login-shell__form { border-radius: var(--radius-xl); padding: 40px 28px; }
+    }
+    .login-shell__form h2 { font-size: 22px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.2px; }
+    .login-shell__form .subtitle { color: var(--color-text-muted); font-size: 13px; margin: 0 0 28px; }
+
+    .login-form { display: flex; flex-direction: column; gap: 18px; }
+    .login-error {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 14px;
+      background: rgba(239, 68, 68, 0.10);
+      border: 1px solid rgba(239, 68, 68, 0.40);
+      border-radius: var(--radius-md);
+      color: #FCA5A5;
+      font-size: 13px;
+    }
+    .login-form .btn-2026 { padding: 14px 18px; font-size: 14px; }
+
+    .login-footer {
+      margin-top: 28px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--color-text-dim);
+      letter-spacing: 0.3px;
+    }
+    .spinner-sm {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      border: 2px solid rgba(0,0,0,0.25);
+      border-top-color: #0A0E1A;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="has-mesh-bg">
+  <div class="login-grid"></div>
+  <div class="orb orb--1"></div>
+  <div class="orb orb--2"></div>
+  <div class="orb orb--3"></div>
+
+  <div class="login-page" x-data="loginApp()" x-init="init()">
+    <div class="login-shell">
+
+      <!-- ── BRAND PANEL ───────────────────────────────────── -->
+      <aside class="login-shell__brand">
+        <div>
+          <div class="brand-glow" style="margin-bottom: 28px;">
+            <span class="brand-glow__logo">AD</span>
+            <span>AD Audit AI</span>
+          </div>
+          <h1>Sécurisez votre Active Directory.</h1>
+          <p style="margin-top: 12px;">
+            Détection automatisée des chemins d'attaque,
+            scoring par IA, mapping MITRE ATT&amp;CK et rapports
+            d'audit livrables — en un clic.
+          </p>
+        </div>
+
+        <ul class="feature-list">
+          <li>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Collecte directe AD ou import BloodHound
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Analyse IA — explications et plan d'action en français
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Mapping MITRE ATT&amp;CK complet
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Guides de mitigation prêts à l'emploi
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Mode 100 % local disponible (Ollama)
+          </li>
+        </ul>
+
+        <small>Plateforme d'audit Active Directory · 2026</small>
+      </aside>
+
+      <!-- ── FORM PANEL ────────────────────────────────────── -->
+      <main class="login-shell__form">
+        <h2>Connexion</h2>
+        <p class="subtitle">Accédez à votre espace d'audit sécurisé.</p>
+
+        <form class="login-form" @submit.prevent="submit" autocomplete="on" :class="errorShake ? 'shake' : ''">
+          <template x-if="error">
+            <div class="login-error">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3.5M8 11h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+              <span x-text="error"></span>
+            </div>
+          </template>
+
+          <div class="field-2026">
+            <label for="email">Adresse e-mail</label>
+            <input id="email" type="email" required
+                   x-model="email" autocomplete="username"
+                   placeholder="vous@organisation.com" />
+          </div>
+
+          <div class="field-2026">
+            <label for="password">Mot de passe</label>
+            <input id="password" type="password" required
+                   x-model="password" autocomplete="current-password"
+                   placeholder="••••••••" />
+          </div>
+
+          <button class="btn-2026 btn-2026--primary" type="submit" :disabled="loading">
+            <template x-if="!loading">
+              <span style="display:inline-flex;align-items:center;gap:8px;">
+                Se connecter
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </template>
+            <template x-if="loading">
+              <span style="display:inline-flex;align-items:center;gap:10px;">
+                <span class="spinner-sm"></span>
+                Connexion…
+              </span>
+            </template>
+          </button>
+        </form>
+
+        <p class="login-footer">Accès réservé aux auditeurs autorisés</p>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    function loginApp() {
+      return {
+        email: '',
+        password: '',
+        loading: false,
+        error: null,
+        errorShake: false,
+        init() {
+          if (api.getAccessToken()) location.href = '/dashboard.html';
+        },
+        async submit() {
+          this.error = null;
+          this.errorShake = false;
+          this.loading = true;
+          try {
+            const data = await api.login(this.email, this.password);
+            api.setTokens(data.access_token, data.refresh_token);
+            const me = await api.me();
+            api.setUser(me);
+            location.href = '/dashboard.html';
+          } catch (e) {
+            this.error = e.message || 'Identifiants incorrects';
+            this.errorShake = true;
+            setTimeout(() => { this.errorShake = false; }, 500);
+          } finally {
+            this.loading = false;
+          }
+        },
+      };
+    }
+  </script>
+</body>
+</html>

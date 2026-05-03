@@ -1,0 +1,40 @@
+localhost {
+    # Frontend static files
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+
+    handle /ws/* {
+        reverse_proxy backend:8000 {
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
+        }
+    }
+
+    handle /healthz {
+        reverse_proxy backend:8000
+    }
+
+    handle /readyz {
+        reverse_proxy backend:8000
+    }
+
+    handle /docs {
+        reverse_proxy backend:8000
+    }
+
+    handle /openapi.json {
+        reverse_proxy backend:8000
+    }
+
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    encode gzip
+
+    log {
+        output stdout
+        format json
+    }
+}

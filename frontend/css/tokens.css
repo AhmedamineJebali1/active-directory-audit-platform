@@ -1,0 +1,88 @@
+/* ============================================================
+   AD Audit AI — Design Tokens (2026 redesign)
+   Lightweight, dark-mode-only, GPU-friendly.
+   ============================================================ */
+
+:root {
+  /* ── Brand & accents ───────────────────────────────────────── */
+  --color-accent:        #86BC25;
+  --color-accent-bright: #A8D947;
+  --color-accent-dim:    #6A9A1E;
+  --color-accent-glow:   rgba(134, 188, 37, 0.45);
+
+  /* ── Surfaces (deep navy → space black) ────────────────────── */
+  --color-bg:            #0A0E1A;          /* deepest, page bg */
+  --color-bg-elevated:   #111827;          /* card surface */
+  --color-bg-raised:     #1F2937;          /* nested / hover surface */
+  --color-bg-glass:      rgba(17, 24, 39, 0.65);
+
+  --color-border:        rgba(148, 163, 184, 0.10);
+  --color-border-strong: rgba(148, 163, 184, 0.20);
+  --color-border-accent: rgba(134, 188, 37, 0.40);
+
+  /* ── Text ─────────────────────────────────────────────────── */
+  --color-text:          #F9FAFB;
+  --color-text-muted:    #9CA3AF;
+  --color-text-dim:      #6B7280;
+
+  /* ── Semantic risk ────────────────────────────────────────── */
+  --risk-critique:       #EF4444;
+  --risk-eleve:          #F97316;
+  --risk-moyen:          #EAB308;
+  --risk-faible:         #22C55E;
+
+  --risk-critique-bg:    rgba(239, 68, 68, 0.12);
+  --risk-eleve-bg:       rgba(249, 115, 22, 0.12);
+  --risk-moyen-bg:       rgba(234, 179, 8, 0.12);
+  --risk-faible-bg:      rgba(34, 197, 94, 0.12);
+
+  /* Legacy aliases kept so older templates don't break */
+  --color-graphite:      var(--color-bg);
+  --color-charcoal:      var(--color-bg-raised);
+  --color-stone:         var(--color-text-muted);
+  --color-silver:        var(--color-text-muted);
+  --color-mist:          var(--color-border-strong);
+  --color-cloud:         var(--color-bg-elevated);
+  --color-white:         var(--color-text);
+  --color-black:         var(--color-bg);
+  --color-accent-dark:   var(--color-accent-dim);
+  --color-accent-light:  var(--color-accent-bright);
+
+  /* ── Typography ───────────────────────────────────────────── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── Scale ────────────────────────────────────────────────── */
+  --space-1: 4px;   --space-2: 8px;   --space-3: 12px;
+  --space-4: 16px;  --space-5: 24px;  --space-6: 32px;
+  --space-7: 48px;  --space-8: 64px;
+
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  /* ── Shadows (real depth, not flat) ───────────────────────── */
+  --shadow-sm:  0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-md:  0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-lg:  0 12px 40px rgba(0, 0, 0, 0.45);
+  --shadow-xl:  0 24px 64px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 24px var(--color-accent-glow);
+
+  /* ── Motion ───────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --motion-fast: 150ms;
+  --motion-base: 240ms;
+  --motion-slow: 400ms;
+
+  /* ── Sidebar geometry ─────────────────────────────────────── */
+  --sidebar-collapsed: 64px;
+  --sidebar-expanded:  240px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+  }
+}

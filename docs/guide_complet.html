@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AD Audit AI — Guide Complet</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #86BC25;
+    --green-dark: #6A9A1E;
+    --green-light: #e8f5d0;
+    --black: #000;
+    --graphite: #1A1A1A;
+    --charcoal: #53565A;
+    --stone: #75787B;
+    --silver: #BBBCBC;
+    --mist: #DDDEDE;
+    --cloud: #F5F5F5;
+    --white: #FFF;
+    --critique: #C8102E;
+    --eleve: #ED8B00;
+    --moyen: #FFCD00;
+    --faible: #86BC25;
+    --blue: #0066CC;
+    --blue-light: #E8F0FA;
+    --purple: #6B2FBF;
+    --purple-light: #F0E8FA;
+    --orange: #E25A00;
+    --orange-light: #FFF0E8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--graphite);
+    background: var(--white);
+  }
+
+  /* ======== COVER PAGE ======== */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: var(--graphite);
+    color: var(--white);
+    padding: 80px 60px;
+    page-break-after: always;
+  }
+  .cover-badge {
+    display: inline-block;
+    background: var(--green);
+    color: var(--black);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 3px;
+    margin-bottom: 32px;
+  }
+  .cover h1 {
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+  .cover h1 span { color: var(--green); }
+  .cover .subtitle {
+    font-size: 20px;
+    font-weight: 300;
+    color: var(--silver);
+    max-width: 600px;
+    margin-bottom: 60px;
+  }
+  .cover-meta {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    padding-top: 40px;
+  }
+  .cover-meta-item label { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--silver); }
+  .cover-meta-item p { font-size: 16px; font-weight: 600; margin-top: 4px; }
+  .cover-line { height: 4px; width: 60px; background: var(--green); margin-bottom: 32px; }
+
+  /* ======== TOC ======== */
+  .toc {
+    padding: 60px;
+    page-break-after: always;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .toc h2 { font-size: 28px; font-weight: 700; margin-bottom: 32px; }
+  .toc ol { list-style: none; }
+  .toc > ol > li { margin-bottom: 12px; }
+  .toc a { text-decoration: none; color: var(--graphite); display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px dotted var(--mist); }
+  .toc a:hover { color: var(--green-dark); }
+  .toc-number { font-size: 12px; font-weight: 700; color: var(--green); margin-right: 10px; min-width: 28px; }
+  .toc-sub { padding-left: 40px; font-size: 13px; color: var(--charcoal); }
+  .toc-sub a { border-bottom: none; }
+
+  /* ======== SECTIONS ======== */
+  .section {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 60px 60px 40px;
+    page-break-before: always;
+  }
+  .section:first-of-type { page-break-before: auto; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 36px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--mist);
+  }
+  .section-num {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: var(--green);
+    color: var(--black);
+    font-size: 20px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .section h2 { font-size: 28px; font-weight: 700; }
+  .section h3 { font-size: 18px; font-weight: 600; margin: 28px 0 12px; color: var(--graphite); }
+  .section h4 { font-size: 15px; font-weight: 600; margin: 20px 0 8px; color: var(--charcoal); }
+  .section p { margin-bottom: 14px; color: var(--charcoal); }
+  .section ul, .section ol { padding-left: 22px; margin-bottom: 14px; color: var(--charcoal); }
+  .section li { margin-bottom: 6px; }
+
+  /* ======== COMPONENTS ======== */
+  .callout {
+    border-left: 4px solid var(--green);
+    background: var(--green-light);
+    padding: 16px 20px;
+    border-radius: 0 8px 8px 0;
+    margin: 20px 0;
+  }
+  .callout.info { border-color: var(--blue); background: var(--blue-light); }
+  .callout.warn { border-color: var(--eleve); background: #FFF7E8; }
+  .callout.danger { border-color: var(--critique); background: #FFF0F0; }
+  .callout-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .callout.default .callout-title { color: var(--green-dark); }
+  .callout.info .callout-title { color: var(--blue); }
+  .callout.warn .callout-title { color: var(--orange); }
+  .callout.danger .callout-title { color: var(--critique); }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--cloud);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--graphite);
+  }
+  pre {
+    background: var(--graphite);
+    color: #E8E8E8;
+    padding: 20px 24px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+  pre .comment { color: #75787B; }
+  pre .keyword { color: #86BC25; }
+  pre .string { color: #FFA07A; }
+  pre .number { color: #87CEEB; }
+
+  /* Architecture boxes */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .arch-box {
+    border: 2px solid var(--mist);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    background: var(--cloud);
+  }
+  .arch-box.highlight { border-color: var(--green); background: var(--green-light); }
+  .arch-box .icon { font-size: 28px; margin-bottom: 10px; }
+  .arch-box h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--graphite); }
+  .arch-box p { font-size: 11px; color: var(--charcoal); margin: 0; }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 28px 0;
+    overflow-x: auto;
+  }
+  .flow-step {
+    flex: 1;
+    min-width: 110px;
+    text-align: center;
+    position: relative;
+  }
+  .flow-step .box {
+    background: var(--graphite);
+    color: var(--white);
+    border-radius: 8px;
+    padding: 12px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    min-height: 70px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 4px;
+  }
+  .flow-step .box.green { background: var(--green); color: var(--black); }
+  .flow-step .box.outline { background: var(--white); color: var(--graphite); border: 2px solid var(--mist); }
+  .flow-step .step-num {
+    width: 22px;
+    height: 22px;
+    background: var(--green);
+    color: var(--black);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 8px;
+  }
+  .flow-arrow {
+    display: flex;
+    align-items: center;
+    color: var(--stone);
+    font-size: 18px;
+    padding: 0 2px;
+    align-self: center;
+  }
+
+  /* Risk badges */
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .badge.critique { background: var(--critique); color: var(--white); }
+  .badge.eleve { background: var(--eleve); color: var(--white); }
+  .badge.moyen { background: var(--moyen); color: var(--black); }
+  .badge.faible { background: var(--faible); color: var(--black); }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  th {
+    background: var(--graphite);
+    color: var(--white);
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--mist); color: var(--charcoal); }
+  tr:nth-child(even) td { background: var(--cloud); }
+  tr:hover td { background: var(--green-light); }
+
+  /* Module cards */
+  .module-card {
+    border: 1px solid var(--mist);
+    border-radius: 10px;
+    margin: 20px 0;
+    overflow: hidden;
+  }
+  .module-card-header {
+    background: var(--graphite);
+    color: var(--white);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .module-card-header .num {
+    background: var(--green);
+    color: var(--black);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .module-card-header h4 { font-size: 15px; font-weight: 700; margin: 0; }
+  .module-card-header .file { font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--silver); margin-top: 2px; }
+  .module-card-body { padding: 20px; }
+
+  /* Page nav */
+  .page-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--silver);
+    margin-bottom: 8px;
+  }
+
+  /* Suggestions */
+  .suggestion-card {
+    display: flex;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--mist);
+    border-radius: 10px;
+    margin: 14px 0;
+    background: var(--white);
+  }
+  .suggestion-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: var(--green-light);
+    border: 2px solid var(--green);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .suggestion-content h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .suggestion-content p { font-size: 13px; color: var(--charcoal); margin: 0; }
+  .suggestion-pill {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pill-high { background: #FFE8E8; color: var(--critique); }
+  .pill-med { background: #FFF3D6; color: var(--eleve); }
+  .pill-low { background: var(--green-light); color: var(--green-dark); }
+
+  /* Print */
+  @media print {
+    .cover { min-height: 100vh; }
+    .section { page-break-before: always; }
+    .toc { page-break-after: always; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+  }
+
+  .check { color: var(--green); font-weight: 700; }
+  .cross { color: var(--critique); font-weight: 700; }
+  .warn-icon { color: var(--eleve); font-weight: 700; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  .divider { height: 1px; background: var(--mist); margin: 32px 0; }
+
+  footer-bar {
+    border-top: 2px solid var(--green);
+    padding-top: 12px;
+    margin-top: 60px;
+    font-size: 11px;
+    color: var(--silver);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================= COVER ============================= -->
+<div class="cover">
+  <div class="cover-line"></div>
+  <div class="cover-badge">Guide Technique Complet</div>
+  <h1>AD Audit <span>AI</span></h1>
+  <p class="subtitle">
+    Plateforme d'audit de sécurité Active Directory automatisé — Documentation complète, architecture, flux de données et guide d'utilisation
+  </p>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <label>Version</label>
+      <p>1.0 — Production</p>
+    </div>
+    <div class="cover-meta-item">
+      <label>Date</label>
+      <p>Mai 2026</p>
+    </div>
+    <div class="cover-meta-item">
+      <label>Classification</label>
+      <p>Document de travail</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= TOC ============================= -->
+<div class="toc">
+  <h2>Sommaire</h2>
+  <ol>
+    <li><a href="#s1"><span class="toc-number">01</span>Qu'est-ce que AD Audit AI ? <span style="color:var(--silver);font-size:12px">Vue d'ensemble</span></a></li>
+    <li><a href="#s2"><span class="toc-number">02</span>Architecture du système <span style="color:var(--silver);font-size:12px">Tous les blocs et leurs rôles</span></a></li>
+    <li><a href="#s3"><span class="toc-number">03</span>Flux de données complet <span style="color:var(--silver);font-size:12px">Login → Upload → Analyse → Rapport</span></a></li>
+    <li><a href="#s4"><span class="toc-number">04</span>Les 5 modules backend <span style="color:var(--silver);font-size:12px">Ingestion, Chemins, MITRE, Agent, Rapport</span></a></li>
+    <li><a href="#s5"><span class="toc-number">05</span>L'API REST <span style="color:var(--silver);font-size:12px">Tous les endpoints expliqués</span></a></li>
+    <li><a href="#s6"><span class="toc-number">06</span>Le frontend page par page <span style="color:var(--silver);font-size:12px">Login, Dashboard, Mission, Détail</span></a></li>
+    <li><a href="#s7"><span class="toc-number">07</span>Concepts clés <span style="color:var(--silver);font-size:12px">AD, BloodHound, MITRE ATT&amp;CK, LLM</span></a></li>
+    <li><a href="#s8"><span class="toc-number">08</span>Guide d'utilisation pas à pas <span style="color:var(--silver);font-size:12px">Du démarrage au rapport PDF</span></a></li>
+    <li><a href="#s9"><span class="toc-number">09</span>Sécurité &amp; configuration <span style="color:var(--silver);font-size:12px">Variables d'environnement, RBAC, JWT</span></a></li>
+    <li><a href="#s10"><span class="toc-number">10</span>Suggestions d'amélioration <span style="color:var(--silver);font-size:12px">20 idées créatives pour V2</span></a></li>
+  </ol>
+</div>
+
+<!-- ============================= SECTION 1 ============================= -->
+<div class="section" id="s1">
+  <div class="section-header">
+    <div class="section-num">1</div>
+    <h2>Qu'est-ce que AD Audit AI ?</h2>
+  </div>
+
+  <h3>Le problème qu'il résout</h3>
+  <p>
+    Dans un réseau d'entreprise, <strong>Active Directory (AD)</strong> est le cœur du système d'authentification — il gère tous les utilisateurs, ordinateurs et droits d'accès. Un attaquant qui compromet AD a un accès total à l'organisation.
+  </p>
+  <p>
+    Auditer manuellement un AD est long et technique : il faut analyser des milliers de relations entre comptes, groupes et machines pour trouver les "chemins d'attaque" (comment un attaquant passerait d'un compte banal à un compte Administrateur du Domaine). Une équipe d'audit peut passer plusieurs jours sur cette tâche.
+  </p>
+  <p>
+    <strong>AD Audit AI automatise ce travail</strong> : il ingère l'export d'un outil (BloodHound), trouve tous les chemins d'attaque, les fait analyser par une IA, les cartographie sur le référentiel MITRE ATT&amp;CK, et génère un rapport PDF professionnel livrable directement au client.
+  </p>
+
+  <div class="callout default">
+    <div class="callout-title">En une phrase</div>
+    AD Audit AI = BloodHound + Intelligence Artificielle + Rapport PDF — automatisé et sécurisé.
+  </div>
+
+  <h3>Qui utilise la plateforme ?</h3>
+  <div class="arch-grid">
+    <div class="arch-box highlight">
+      <div class="icon">👤</div>
+      <h4>Administrateur</h4>
+      <p>Gère les utilisateurs, configure les clés LLM, accès total</p>
+    </div>
+    <div class="arch-box">
+      <div class="icon">📋</div>
+      <h4>Manager</h4>
+      <p>Crée les missions client, accède à tous les rapports</p>
+    </div>
+    <div class="arch-box">
+      <div class="icon">🔍</div>
+      <h4>Auditeur</h4>
+      <p>Upload les fichiers, consulte les chemins, télécharge les guides</p>
+    </div>
+  </div>
+
+  <h3>Ce que la plateforme produit</h3>
+  <ul>
+    <li>Une <strong>liste de chemins d'attaque</strong> triés par score de risque (Critique → Faible)</li>
+    <li>Pour chaque chemin : explication en français, score de sévérité, techniques MITRE associées</li>
+    <li>Un <strong>rapport PDF</strong> multi-pages prêt à livrer au client</li>
+    <li>Des <strong>guides de remédiation</strong> (PowerShell) téléchargeables</li>
+    <li>Une <strong>visualisation graphique</strong> du réseau AD (via Cytoscape.js)</li>
+  </ul>
+</div>
+
+<!-- ============================= SECTION 2 ============================= -->
+<div class="section" id="s2">
+  <div class="section-header">
+    <div class="section-num">2</div>
+    <h2>Architecture du système</h2>
+  </div>
+
+  <h3>Vue d'ensemble : 6 composants</h3>
+  <div class="arch-grid">
+    <div class="arch-box">
+      <div class="icon">🌐</div>
+      <h4>Frontend</h4>
+      <p>HTML + Alpine.js + Chart.js. Servi par Nginx sur le port 80/443.</p>
+    </div>
+    <div class="arch-box highlight">
+      <div class="icon">⚙️</div>
+      <h4>Backend API</h4>
+      <p>Python / FastAPI. Toute la logique métier. Port 8000.</p>
+    </div>
+    <div class="arch-box">
+      <div class="icon">🗄️</div>
+      <h4>PostgreSQL</h4>
+      <p>Base de données relationnelle. Stocke users, missions, analyses, chemins.</p>
+    </div>
+    <div class="arch-box">
+      <div class="icon">🔗</div>
+      <h4>Neo4j</h4>
+      <p>Base de données graphe. Stocke le réseau AD importé.</p>
+    </div>
+    <div class="arch-box">
+      <div class="icon">🤖</div>
+      <h4>LLM Provider</h4>
+      <p>Anthropic Claude (ou OpenAI, Azure, Ollama local). Analyse les chemins.</p>
+    </div>
+    <div class="arch-box">
+      <div class="icon">🔀</div>
+      <h4>Caddy</h4>
+      <p>Reverse proxy. Gère HTTPS et route les requêtes vers frontend/backend.</p>
+    </div>
+  </div>
+
+  <h3>Comment ils communiquent</h3>
+  <pre>
+Navigateur
+    │
+    ▼
+  Caddy (port 80/443)
+    ├── /api/*  ──────► Backend FastAPI (port 8000)
+    │                       ├── PostgreSQL (port 5432)
+    │                       ├── Neo4j (port 7687)
+    │                       └── LLM API (internet ou local)
+    └── /*      ──────► Frontend Nginx (port 80 interne)</pre>
+
+  <h3>Détail des couches backend</h3>
+  <table>
+    <thead><tr><th>Couche</th><th>Fichier / Dossier</th><th>Rôle</th></tr></thead>
+    <tbody>
+      <tr><td>Entrypoint</td><td><code>app/main.py</code></td><td>Démarre FastAPI, enregistre tous les routers, crée l'admin au démarrage</td></tr>
+      <tr><td>Configuration</td><td><code>app/config.py</code></td><td>Lit les variables d'environnement (.env) via pydantic-settings</td></tr>
+      <tr><td>Base de données</td><td><code>app/database.py</code></td><td>Crée la connexion SQLAlchemy async vers PostgreSQL</td></tr>
+      <tr><td>Sécurité</td><td><code>app/core/security.py</code></td><td>Hachage mot de passe, génération/vérification JWT, RBAC</td></tr>
+      <tr><td>Modèles ORM</td><td><code>app/models/</code></td><td>Définit les tables PostgreSQL (User, Engagement, Analysis, AttackPath…)</td></tr>
+      <tr><td>Schémas Pydantic</td><td><code>app/schemas/</code></td><td>Valide les données en entrée/sortie des endpoints</td></tr>
+      <tr><td>Endpoints REST</td><td><code>app/api/v1/</code></td><td>8 fichiers de routes (auth, engagements, analyses, paths, reports…)</td></tr>
+      <tr><td>Modules métier</td><td><code>app/modules/</code></td><td>Les 5 modules core (ingestion, paths, mitre, agent, report)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Structure des données PostgreSQL</h3>
+  <pre>
+<span class="comment">-- Hiérarchie des entités</span>
+users (1)
+  └── engagements (N)   <span class="comment">-- une mission par client</span>
+        └── analyses (N) <span class="comment">-- un upload BloodHound = une analyse</span>
+              └── attack_paths (N) <span class="comment">-- chemins trouvés</span>
+                    └── path_mitre_techniques (N) <span class="comment">-- techniques MITRE par chemin</span>
+
+<span class="comment">-- Tables transverses</span>
+audit_logs   <span class="comment">-- trace toutes les actions</span>
+app_settings <span class="comment">-- config LLM stockée en DB</span></pre>
+</div>
+
+<!-- ============================= SECTION 3 ============================= -->
+<div class="section" id="s3">
+  <div class="section-header">
+    <div class="section-num">3</div>
+    <h2>Flux de données complet</h2>
+  </div>
+
+  <h3>Le grand voyage d'un fichier BloodHound</h3>
+  <p>Voici exactement ce qui se passe entre le moment où l'auditeur clique "Upload" et le moment où le rapport PDF est prêt :</p>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="box green"><div class="step-num">1</div>Upload .json</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="box"><div class="step-num">2</div>Validation & stockage en DB</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="box"><div class="step-num">3</div>Ingestion graphe NetworkX + Neo4j</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="box"><div class="step-num">4</div>Extraction chemins d'attaque</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="box"><div class="step-num">5</div>Enrichissement MITRE ATT&CK</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="box"><div class="step-num">6</div>Analyse LLM par batch</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="box green"><div class="step-num">7</div>PDF généré</div>
+    </div>
+  </div>
+
+  <h3>Étape 1 — Upload du fichier</h3>
+  <p>L'auditeur glisse-dépose un fichier <code>.json</code> exporté depuis BloodHound sur la page Mission. Le frontend envoie le fichier en multipart/form-data vers <code>POST /api/v1/engagements/{id}/analyses</code>.</p>
+  <p>Le backend vérifie que le fichier est bien un <code>.json</code> et ne dépasse pas 100 MB, crée un objet <code>Analysis</code> en base avec le statut <code>pending</code>, et démarre le pipeline en arrière-plan (BackgroundTask).</p>
+  <p>Le frontend reçoit immédiatement la réponse <code>202 Accepted</code> et se connecte en WebSocket pour suivre la progression.</p>
+
+  <h3>Étape 2 — Connexion WebSocket</h3>
+  <p>Le frontend ouvre une connexion WebSocket vers <code>/ws/analyses/{id}?token=JWT</code>. Le token est validé dès l'ouverture de la connexion (accès refusé si absent ou invalide). À chaque étape du pipeline, le backend envoie un événement JSON :</p>
+  <pre>
+{
+  <span class="string">"stage"</span>: <span class="string">"ingestion"</span>,
+  <span class="string">"progress"</span>: <span class="number">5</span>,
+  <span class="string">"message_fr"</span>: <span class="string">"Ingestion du graphe BloodHound en cours..."</span>
+}</pre>
+  <p>La barre de progression dans l'interface se met à jour en temps réel.</p>
+
+  <h3>Étape 3 — Ingestion du graphe (5% → 25%)</h3>
+  <p>Le module <code>ingestion.py</code> lit le JSON BloodHound (formats v4 et v5 supportés). Il construit un <strong>graphe orienté</strong> avec NetworkX où :</p>
+  <ul>
+    <li><strong>Nœuds</strong> = utilisateurs, ordinateurs, groupes, domaines</li>
+    <li><strong>Arêtes</strong> = relations AD (AdminTo, MemberOf, HasSession, DCSync…)</li>
+  </ul>
+  <p>Les nœuds privilégiés sont détectés automatiquement via leur SID Windows (ex : <code>S-1-5-21-*-512</code> = Domain Admins). Le graphe est aussi persisté dans Neo4j pour les requêtes Cypher avancées.</p>
+
+  <h3>Étape 4 — Extraction des chemins d'attaque (25% → 40%)</h3>
+  <p>Le module <code>paths.py</code> utilise l'algorithme <code>all_simple_paths</code> de NetworkX pour trouver tous les chemins depuis n'importe quel nœud non-privilégié vers un nœud privilégié, avec une limite de <strong>6 sauts maximum</strong>.</p>
+  <p>Exemple de chemin : <code>jdoe</code> → <em>MemberOf</em> → <code>IT_Support</code> → <em>AdminTo</em> → <code>PC-DEV01</code> → <em>HasSession</em> → <code>admin_bob</code> → <em>MemberOf</em> → <code>Domain Admins</code></p>
+  <p>Les chemins dupliqués sont éliminés par hachage de la séquence d'arêtes.</p>
+
+  <h3>Étape 5 — Enrichissement MITRE ATT&amp;CK (40% → 55%)</h3>
+  <p>Le module <code>mitre.py</code> consulte le fichier <code>mitre_mapping.json</code> qui associe chaque type d'arête BloodHound à une ou plusieurs techniques MITRE ATT&amp;CK. Par exemple :</p>
+  <ul>
+    <li><code>HasSession</code> → <span class="badge moyen">T1550.002 Pass the Hash</span></li>
+    <li><code>DCSync</code> → <span class="badge critique">T1003.006 OS Credential Dumping</span></li>
+    <li><code>AdminTo</code> → <span class="badge eleve">T1021.002 SMB/Windows Admin Shares</span></li>
+  </ul>
+
+  <h3>Étape 6 — Analyse LLM (55% → 85%)</h3>
+  <p>Le module <code>agent.py</code> envoie chaque chemin au LLM (par batch de 5) avec un prompt en français détaillant le contexte du chemin. Le LLM répond avec un JSON structuré :</p>
+  <pre>
+{
+  <span class="string">"exploitability_score"</span>: <span class="number">8.5</span>,
+  <span class="string">"stealth_score"</span>: <span class="number">7.0</span>,
+  <span class="string">"global_score"</span>: <span class="number">8.0</span>,
+  <span class="string">"risk_level"</span>: <span class="string">"Critique"</span>,
+  <span class="string">"explanation"</span>: <span class="string">"Ce chemin permet à un attaquant..."</span>,
+  <span class="string">"recommendation"</span>: <span class="string">"Supprimer le droit AdminTo sur..."</span>
+}</pre>
+  <p>Si le LLM échoue 3 fois, le chemin est marqué <code>analyse_echec</code> (jamais de données inventées). Un score heuristique de secours est appliqué.</p>
+
+  <h3>Étape 7 — Génération du rapport PDF (85% → 100%)</h3>
+  <p>Le module <code>report.py</code> utilise Jinja2 pour rendre un template HTML en PDF via WeasyPrint. Le PDF inclut : page de garde, synthèse exécutive, tableau des chemins, détails par chemin critique, annexe MITRE.</p>
+
+  <h3>Flux d'authentification</h3>
+  <p>Toutes les requêtes API (sauf <code>/auth/login</code>, <code>/healthz</code>, <code>/readyz</code>) nécessitent un token JWT dans l'en-tête <code>Authorization: Bearer {token}</code>.</p>
+  <pre>
+<span class="comment">Connexion :</span>
+POST /api/v1/auth/login → { access_token, refresh_token }
+
+<span class="comment">Utilisation :</span>
+GET /api/v1/engagements
+Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
+
+<span class="comment">Renouvellement automatique (côté frontend) :</span>
+POST /api/v1/auth/refresh → nouveau access_token</pre>
+</div>
+
+<!-- ============================= SECTION 4 ============================= -->
+<div class="section" id="s4">
+  <div class="section-header">
+    <div class="section-num">4</div>
+    <h2>Les 5 modules backend core</h2>
+  </div>
+
+  <p>Ces 5 fichiers dans <code>backend/app/modules/</code> sont le cœur de la plateforme. Tout le reste (API, frontend) s'appuie sur eux.</p>
+
+  <div class="module-card">
+    <div class="module-card-header">
+      <div class="num">1</div>
+      <div>
+        <h4>ingestion.py — Lecture BloodHound → Graphe</h4>
+        <div class="file">app/modules/ingestion.py</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <p><strong>Rôle :</strong> Lire un fichier JSON exporté par BloodHound et le transformer en un graphe Python (NetworkX DiGraph) exploitable.</p>
+      <p><strong>Ce qu'il fait concrètement :</strong></p>
+      <ul>
+        <li>Détecte si le JSON est au format BloodHound v4 ou v5 (schemas différents)</li>
+        <li>Crée un nœud dans le graphe pour chaque entité AD (User, Computer, Group, Domain…)</li>
+        <li>Crée une arête orientée pour chaque relation AD (A → AdminTo → B)</li>
+        <li>Marque automatiquement les nœuds privilégiés (Domain Admins = SID *-512, Enterprise Admins = *-519…)</li>
+        <li>Persiste le graphe dans Neo4j pour permettre des requêtes Cypher</li>
+        <li>Ignore les types d'arêtes inconnus sans planter (warning dans les logs)</li>
+      </ul>
+      <p><strong>Entrée :</strong> <code>dict</code> (JSON BloodHound parsé) — <strong>Sortie :</strong> <code>(nx.DiGraph, nb_nœuds, nb_arêtes)</code></p>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-card-header">
+      <div class="num">2</div>
+      <div>
+        <h4>paths.py — Extraction des chemins d'attaque</h4>
+        <div class="file">app/modules/paths.py</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <p><strong>Rôle :</strong> Trouver tous les chemins qui mènent d'un nœud non-privilégié à un nœud privilégié dans le graphe.</p>
+      <p><strong>Algorithme :</strong> NetworkX <code>all_simple_paths</code> avec un cutoff de 6 sauts. Cet algorithme explore toutes les combinaisons possibles sans cycles.</p>
+      <p><strong>Déduplication :</strong> Chaque chemin est identifié par un hachage SHA-256 de sa séquence d'arêtes. Les chemins identiques (mêmes arêtes dans le même ordre) sont ignorés.</p>
+      <p><strong>Ce qu'un chemin contient :</strong></p>
+      <pre>AttackPathData(
+  source_node = <span class="string">"jdoe@contoso.local"</span>,
+  target_node = <span class="string">"DOMAIN ADMINS@contoso.local"</span>,
+  hops = [{source, edge_type, target}, ...],
+  length = <span class="number">4</span>,          <span class="comment"># nombre de sauts</span>
+  source_type = <span class="string">"User"</span>,
+  target_type = <span class="string">"Group"</span>,
+  mitre_techniques = [...]   <span class="comment"># rempli par mitre.py</span>
+)</pre>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-card-header">
+      <div class="num">3</div>
+      <div>
+        <h4>mitre.py — Mapping MITRE ATT&amp;CK</h4>
+        <div class="file">app/modules/mitre.py</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <p><strong>Rôle :</strong> Enrichir chaque chemin d'attaque avec les techniques MITRE ATT&amp;CK correspondantes.</p>
+      <p><strong>Source :</strong> Le fichier <code>backend/data/mitre_mapping.json</code> qui associe chaque type d'arête BloodHound à 1-N techniques MITRE. Ce fichier est chargé au démarrage (lecture unique, résultat mis en cache).</p>
+      <p><strong>Exemple :</strong> Un chemin avec les arêtes <code>[MemberOf, AdminTo, HasSession]</code> recevra :</p>
+      <ul>
+        <li>MemberOf → T1069.002 (Permission Groups Discovery)</li>
+        <li>AdminTo → T1078.002 (Valid Accounts: Domain Accounts), T1021.002 (SMB)</li>
+        <li>HasSession → T1550.002 (Pass the Hash), T1558.003 (Kerberoasting)</li>
+      </ul>
+      <p>Les doublons de techniques sont dédupliqués par chemin.</p>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-card-header">
+      <div class="num">4</div>
+      <div>
+        <h4>agent.py — Agent LLM d'analyse</h4>
+        <div class="file">app/modules/agent.py</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <p><strong>Rôle :</strong> Envoyer chaque chemin d'attaque à un LLM (modèle de langage) pour obtenir une analyse détaillée en français.</p>
+      <p><strong>Architecture multi-provider :</strong> Le module sélectionne le provider LLM configuré (Anthropic, OpenAI, Azure, Ollama local, Mock pour tests) via la factory dans <code>llm_providers/</code>. La config peut être changée en live depuis la page Paramètres sans redémarrer.</p>
+      <p><strong>Robustesse :</strong></p>
+      <ul>
+        <li>3 tentatives par chemin avec extraction JSON robuste (gère les blocs <code>```json</code>)</li>
+        <li>Cache en mémoire par hachage du chemin (même chemin = jamais renvoyé au LLM)</li>
+        <li>En cas de quota LLM dépassé (erreur 429) : bascule immédiatement sur le score heuristique</li>
+        <li>Score heuristique : basé sur les types d'arêtes (DCSync/GenericAll = Critique, MemberOf seul = Faible)</li>
+        <li>Délai entre batches pour respecter les rate limits des providers</li>
+      </ul>
+      <p><strong>Prompt système :</strong> Stocké dans <code>backend/data/prompts/analyze_path.txt</code>. Entièrement en français.</p>
+    </div>
+  </div>
+
+  <div class="module-card">
+    <div class="module-card-header">
+      <div class="num">5</div>
+      <div>
+        <h4>report.py — Génération du rapport PDF</h4>
+        <div class="file">app/modules/report.py</div>
+      </div>
+    </div>
+    <div class="module-card-body">
+      <p><strong>Rôle :</strong> Générer un rapport PDF professionnel, livrable directement au client.</p>
+      <p><strong>Technologie :</strong> Jinja2 (template HTML) + WeasyPrint (rendu PDF depuis HTML/CSS).</p>
+      <p><strong>Contenu du rapport :</strong></p>
+      <ol>
+        <li>Page de garde (nom client, code mission, date, verdict global)</li>
+        <li>Sommaire automatique</li>
+        <li>Synthèse exécutive (1 page, générée par un second appel LLM)</li>
+        <li>Méthodologie (texte statique expliquant BloodHound + IA + MITRE)</li>
+        <li>Tableau global des chemins triés par score</li>
+        <li>Détail des chemins Critique et Élevé (explication + recommandation + techniques MITRE)</li>
+        <li>Annexe MITRE : matrice tactique × technique</li>
+        <li>Annexe conformité : mapping ISO 27001 / NIST CSF</li>
+      </ol>
+      <p><strong>Footer :</strong> Chaque page porte le code mission et le texte "CONFIDENTIEL — Document de travail" (configurable).</p>
+    </div>
+  </div>
+
+  <h3>Module bonus : ldap_collector.py</h3>
+  <p>Permet une collecte directe depuis un AD live via LDAP (sans passer par BloodHound). <strong>Activé uniquement avec le flag <code>--allow-live</code></strong>. Trace complète dans les audit_logs. Utile pour les missions où on a accès direct au réseau cible.</p>
+
+  <h3>Module bonus : remediation.py</h3>
+  <p>Génère des guides de remédiation en Markdown avec commandes PowerShell validées, explications en français pour chaque type d'arête dangereuse. Disponible à l'unité (par chemin) ou en bundle ZIP (toute l'analyse).</p>
+</div>
+
+<!-- ============================= SECTION 5 ============================= -->
+<div class="section" id="s5">
+  <div class="section-header">
+    <div class="section-num">5</div>
+    <h2>L'API REST</h2>
+  </div>
+
+  <p>Toute l'interface entre le frontend (ou des clients externes) et le backend se fait via cette API. Accessible sur <code>http://localhost:8000/docs</code> (Swagger UI interactif) une fois la stack démarrée.</p>
+
+  <h3>Authentification</h3>
+  <table>
+    <thead><tr><th>Méthode</th><th>Endpoint</th><th>Rôle requis</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/v1/auth/login</code></td><td>Aucun</td><td>Connexion → retourne JWT</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/auth/register</code></td><td>admin</td><td>Créer un utilisateur</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/auth/me</code></td><td>Tout utilisateur</td><td>Profil de l'utilisateur connecté</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/auth/refresh</code></td><td>Aucun</td><td>Renouveler le token</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Missions (Engagements)</h3>
+  <table>
+    <thead><tr><th>Méthode</th><th>Endpoint</th><th>Rôle</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/v1/engagements</code></td><td>Tous</td><td>Liste des missions (paginée)</td></tr>
+      <tr><td>POST</td><td><code>/api/v1/engagements</code></td><td>admin, manager</td><td>Créer une mission</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/engagements/{id}</code></td><td>Tous</td><td>Détail d'une mission</td></tr>
+      <tr><td>PATCH</td><td><code>/api/v1/engagements/{id}</code></td><td>admin, manager</td><td>Modifier une mission</td></tr>
+      <tr><td>DELETE</td><td><code>/api/v1/engagements/{id}</code></td><td>admin</td><td>Supprimer (cascade)</td></tr>
+      <tr><td>GET/PATCH</td><td><code>/api/v1/engagements/{id}/notes</code></td><td>Tous</td><td>Notes libres de mission</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Analyses</h3>
+  <table>
+    <thead><tr><th>Méthode</th><th>Endpoint</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/v1/engagements/{id}/analyses</code></td><td>Upload BH JSON + lance le pipeline</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/engagements/{id}/analyses</code></td><td>Liste des analyses d'une mission</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}</code></td><td>Détail + statut + progression</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}/graph</code></td><td>Données Cytoscape.js (nœuds + arêtes)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Chemins d'attaque</h3>
+  <table>
+    <thead><tr><th>Méthode</th><th>Endpoint</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}/paths</code></td><td>Liste filtrée (risk, min_score, technique, max_length)</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}/paths/{path_id}</code></td><td>Détail complet d'un chemin</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}/paths/{path_id}/remediation-script</code></td><td>Guide Markdown</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}/remediation-bundle.zip</code></td><td>ZIP de tous les guides</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Rapport &amp; Stats</h3>
+  <table>
+    <thead><tr><th>Méthode</th><th>Endpoint</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}/report.pdf</code></td><td>Télécharger le rapport PDF</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}/stats</code></td><td>Statistiques de l'analyse</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/analyses/{id}/mitre</code></td><td>Couverture MITRE ATT&amp;CK</td></tr>
+      <tr><td>GET</td><td><code>/api/v1/stats/global</code></td><td>Stats globales pour le dashboard</td></tr>
+    </tbody>
+  </table>
+
+  <h3>WebSocket (temps réel)</h3>
+  <div class="callout info">
+    <div class="callout-title">WebSocket</div>
+    <code>WS /ws/analyses/{id}?token=JWT</code> — S'abonner à la progression d'une analyse en temps réel. Le token JWT est <strong>obligatoire</strong>. Le backend émet des événements JSON à chaque étape du pipeline.
+  </div>
+
+  <h3>Santé du système</h3>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /healthz</code></td><td>Liveness check — répond 200 si le processus est vivant</td></tr>
+      <tr><td><code>GET /readyz</code></td><td>Readiness check — vérifie PostgreSQL + Neo4j</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================= SECTION 6 ============================= -->
+<div class="section" id="s6">
+  <div class="section-header">
+    <div class="section-num">6</div>
+    <h2>Le frontend page par page</h2>
+  </div>
+
+  <p>Le frontend est en HTML/CSS/JavaScript pur, <strong>sans framework ni étape de build</strong>. Alpine.js (chargé depuis CDN) gère la réactivité, Chart.js les graphiques. Tout est servi par Nginx depuis le conteneur <code>frontend</code>.</p>
+
+  <h3>Page 1 — Login (<code>/index.html</code>)</h3>
+  <div class="two-col">
+    <div>
+      <p><strong>Rôle :</strong> Authentification de l'utilisateur.</p>
+      <p><strong>Comportement :</strong></p>
+      <ul>
+        <li>Formulaire email + mot de passe</li>
+        <li>Appel <code>POST /api/v1/auth/login</code></li>
+        <li>Stockage du JWT dans <code>localStorage</code></li>
+        <li>Redirection automatique vers le dashboard si déjà connecté</li>
+        <li>Message d'erreur en français si identifiants incorrects</li>
+      </ul>
+    </div>
+    <div>
+      <pre style="font-size:11px">
+<span class="comment">// js/auth.js — gère la session</span>
+auth.login(email, password)
+  → api.post('/auth/login', ...)
+  → localStorage.setItem('token', ...)
+  → window.location = '/dashboard.html'</pre>
+    </div>
+  </div>
+
+  <h3>Page 2 — Dashboard (<code>/dashboard.html</code>)</h3>
+  <p><strong>Rôle :</strong> Vue d'ensemble de toutes les missions d'audit.</p>
+  <p><strong>Ce que la page affiche :</strong></p>
+  <ul>
+    <li>Statistiques globales : nombre de missions par statut (En cours, Terminé, Archivé)</li>
+    <li>Nombre total de chemins d'attaque et de chemins critiques trouvés sur toutes les missions</li>
+    <li><strong>Kanban 3 colonnes</strong> : À faire / En cours / Terminé — les cartes de mission peuvent être glissées entre colonnes</li>
+    <li>Bouton "Nouvelle mission" pour créer un engagement</li>
+  </ul>
+  <p><strong>Données chargées via :</strong> <code>GET /api/v1/engagements</code> + <code>GET /api/v1/engagements/stats/summary</code></p>
+
+  <h3>Page 3 — Mission (<code>/engagement.html?id=UUID</code>)</h3>
+  <p><strong>Rôle :</strong> Gérer une mission spécifique et ses analyses.</p>
+  <p><strong>Ce que la page affiche :</strong></p>
+  <ul>
+    <li>Informations de la mission (client, code, statut, dates)</li>
+    <li>Zone de notes libres (éditeur Markdown simple)</li>
+    <li><strong>Zone de drag &amp; drop</strong> pour uploader un fichier BloodHound .json</li>
+    <li>Liste des analyses avec statut et progression</li>
+    <li><strong>Barre de progression temps réel</strong> (WebSocket) pendant l'analyse</li>
+    <li>Boutons : Voir les chemins, Télécharger le rapport PDF, Télécharger les guides ZIP</li>
+    <li>Visualisation graphique du réseau AD (Cytoscape.js) une fois l'analyse terminée</li>
+  </ul>
+
+  <h3>Page 4 — Détail d'un chemin (<code>/path_detail.html?id=UUID</code>)</h3>
+  <p><strong>Rôle :</strong> Afficher l'analyse complète d'un chemin d'attaque spécifique.</p>
+  <p><strong>Ce que la page affiche :</strong></p>
+  <ul>
+    <li>Le chemin visuellement : nœud source → arêtes → nœud cible</li>
+    <li>Scores : Exploitabilité, Furtivité, Score global (jauges visuelles)</li>
+    <li><span class="badge critique">Critique</span> badge de niveau de risque</li>
+    <li>Explication en français de l'analyste IA (pourquoi ce chemin est dangereux)</li>
+    <li>Recommandation concrète de remédiation en français</li>
+    <li>Badges des techniques MITRE ATT&amp;CK (cliquables → lien vers attack.mitre.org)</li>
+    <li>Bouton pour télécharger le guide PowerShell de remédiation</li>
+  </ul>
+
+  <h3>Page 5 — Paramètres (<code>/settings.html</code>)</h3>
+  <p><strong>Rôle :</strong> Configuration du provider LLM (accessible uniquement aux admins).</p>
+  <p><strong>Fonctionnalités :</strong></p>
+  <ul>
+    <li>Sélection du provider : Anthropic Claude, OpenAI GPT, Azure OpenAI, Ollama (local), etc.</li>
+    <li>Saisie et validation des clés API</li>
+    <li>Test de connexion en temps réel</li>
+    <li>Sélection du modèle (ex: claude-sonnet-4-5)</li>
+    <li>Modification de la config LLM sans redémarrage</li>
+  </ul>
+
+  <h3>Fichiers JavaScript partagés</h3>
+  <table>
+    <thead><tr><th>Fichier</th><th>Rôle</th></tr></thead>
+    <tbody>
+      <tr><td><code>js/api.js</code></td><td>Client HTTP — toutes les requêtes passent par ici, gère auto-refresh JWT sur 401</td></tr>
+      <tr><td><code>js/auth.js</code></td><td>Gestion de session (login, logout, requireAuth, sidebar)</td></tr>
+      <tr><td><code>js/ws_client.js</code></td><td>Client WebSocket pour le suivi de progression en temps réel</td></tr>
+      <tr><td><code>js/upload.js</code></td><td>Drag &amp; drop de fichiers avec aperçu</td></tr>
+      <tr><td><code>js/dashboard.js</code></td><td>Logique spécifique au dashboard (Kanban, stats)</td></tr>
+      <tr><td><code>js/engagement.js</code></td><td>Logique page mission (upload, graph Cytoscape, progression)</td></tr>
+      <tr><td><code>js/path_detail.js</code></td><td>Logique détail chemin (jauges, MITRE badges)</td></tr>
+      <tr><td><code>js/settings.js</code></td><td>Logique paramètres LLM (validation clés, test connexion)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ============================= SECTION 7 ============================= -->
+<div class="section" id="s7">
+  <div class="section-header">
+    <div class="section-num">7</div>
+    <h2>Concepts clés</h2>
+  </div>
+
+  <h3>Active Directory (AD)</h3>
+  <p>Active Directory est le service d'annuaire de Microsoft, présent dans la quasi-totalité des entreprises. Il centralise la gestion de :</p>
+  <ul>
+    <li><strong>Utilisateurs</strong> (comptes humains et services)</li>
+    <li><strong>Ordinateurs</strong> (postes de travail, serveurs)</li>
+    <li><strong>Groupes</strong> (collections d'utilisateurs ou d'ordinateurs)</li>
+    <li><strong>Droits d'accès</strong> (qui peut faire quoi sur quoi)</li>
+  </ul>
+  <p>Le compte le plus puissant est le <strong>Domain Admin</strong> — qui a le contrôle total de tout le domaine Windows. La mission d'un auditeur AD est de trouver comment un attaquant pourrait l'atteindre.</p>
+
+  <h3>BloodHound</h3>
+  <p>BloodHound est un outil open-source qui collecte les relations AD (via LDAP) et les visualise sous forme de graphe. Il exporte ces données en JSON.</p>
+  <p>AD Audit AI consomme cet export JSON comme point d'entrée. <strong>Aucun accès direct à l'AD de production n'est nécessaire</strong> — l'auditeur fournit l'export et la plateforme fait le reste.</p>
+  <div class="callout default">
+    <div class="callout-title">Analogie simple</div>
+    BloodHound = carte du réseau. AD Audit AI = GPS qui trouve tous les chemins dangereux sur cette carte, en explique les risques, et génère le rapport de navigation.
+  </div>
+
+  <h3>Chemins d'attaque</h3>
+  <p>Un chemin d'attaque est une séquence de relations AD qu'un attaquant pourrait enchaîner pour escalader ses privilèges. Par exemple :</p>
+  <pre>
+jdoe (Utilisateur standard)
+  → MemberOf → IT_Support (Groupe)
+  → AdminTo → PC-DEV-01 (Ordinateur)
+  → HasSession → admin_svc (Compte Service)
+  → MemberOf → Domain Admins (Groupe privilégié)</pre>
+  <p>Chaque flèche est une arête BloodHound, chaque ellipse est un nœud. Ce chemin fait 4 sauts et permet d'atteindre les Domain Admins depuis un compte ordinaire.</p>
+
+  <h3>MITRE ATT&amp;CK</h3>
+  <p>MITRE ATT&amp;CK est un référentiel mondial des tactiques et techniques utilisées par les attaquants. Chaque technique a un identifiant (ex: <code>T1078.002</code>) et est documentée avec des détections et mitigations.</p>
+  <p><strong>Tactiques principales en AD :</strong></p>
+  <table>
+    <thead><tr><th>Tactique</th><th>Description</th><th>Exemple technique</th></tr></thead>
+    <tbody>
+      <tr><td>Discovery</td><td>Découverte du réseau</td><td>T1087.002 Account Discovery</td></tr>
+      <tr><td>Lateral Movement</td><td>Déplacement latéral</td><td>T1021.002 SMB Admin Shares</td></tr>
+      <tr><td>Credential Access</td><td>Vol de credentials</td><td>T1003.006 DCSync</td></tr>
+      <tr><td>Privilege Escalation</td><td>Élévation de privilèges</td><td>T1078.002 Valid Accounts</td></tr>
+      <tr><td>Persistence</td><td>Persistance</td><td>T1098 Account Manipulation</td></tr>
+    </tbody>
+  </table>
+
+  <h3>LLM (Large Language Model)</h3>
+  <p>Un LLM est un modèle d'IA capable de comprendre et générer du texte. AD Audit AI utilise un LLM (par défaut Claude d'Anthropic) pour analyser chaque chemin d'attaque et produire :</p>
+  <ul>
+    <li>Une <strong>explication en français</strong> adaptée au niveau du client (pas de jargon technique brut)</li>
+    <li>Un <strong>score de risque</strong> basé sur l'exploitabilité et la furtivité</li>
+    <li>Une <strong>recommandation concrète</strong> de remédiation</li>
+  </ul>
+  <p>Le mode Ollama permet de faire tourner un LLM entièrement en local (Llama 3, Mistral) — aucune donnée ne quitte l'infrastructure.</p>
+
+  <h3>JWT (JSON Web Token)</h3>
+  <p>Le JWT est le mécanisme d'authentification utilisé par l'API. C'est un token signé qui contient l'identité de l'utilisateur et son rôle. Il est valide 15 minutes (access token) et se renouvelle automatiquement via un refresh token de 7 jours.</p>
+  <pre>
+<span class="comment">Structure d'un JWT :</span>
+Header.Payload.Signature
+
+Payload décodé :
+{
+  <span class="string">"sub"</span>: <span class="string">"uuid-de-l-utilisateur"</span>,
+  <span class="string">"role"</span>: <span class="string">"auditor"</span>,
+  <span class="string">"exp"</span>: <span class="number">1748000000</span>  <span class="comment">// timestamp d'expiration</span>
+}</pre>
+</div>
+
+<!-- ============================= SECTION 8 ============================= -->
+<div class="section" id="s8">
+  <div class="section-header">
+    <div class="section-num">8</div>
+    <h2>Guide d'utilisation pas à pas</h2>
+  </div>
+
+  <h3>Prérequis</h3>
+  <ul>
+    <li>Docker Desktop installé et démarré</li>
+    <li>Un fichier <code>.env</code> créé à partir de <code>.env.example</code> (au minimum : <code>ANTHROPIC_API_KEY</code>)</li>
+    <li>Le dossier <code>ad-audit-ai/</code> cloné</li>
+  </ul>
+
+  <h3>Étape 1 — Démarrer la stack</h3>
+  <pre>
+<span class="comment"># Copier le fichier de configuration</span>
+cp .env.example .env
+<span class="comment"># Éditer .env : mettre votre clé Anthropic</span>
+nano .env  <span class="comment"># ou notepad .env sur Windows</span>
+
+<span class="comment"># Démarrer tous les services</span>
+docker compose up -d
+
+<span class="comment"># Vérifier que tout est sain (attendre 30-60s)</span>
+docker compose ps</pre>
+  <div class="callout default">
+    <div class="callout-title">Premier démarrage</div>
+    PostgreSQL, Neo4j et le backend démarrent. Le backend crée automatiquement les tables et l'utilisateur admin défini dans <code>.env</code> (par défaut : <code>admin@adauditai.local</code> / <code>ChangeMeNow!2026</code>).
+  </div>
+
+  <h3>Étape 2 — Se connecter</h3>
+  <p>Ouvrir <code>https://localhost</code> (ou <code>http://localhost</code> en dev). Ignorer l'avertissement de certificat auto-signé. Se connecter avec les identifiants admin.</p>
+
+  <h3>Étape 3 — Créer un utilisateur auditeur (optionnel)</h3>
+  <p>En tant qu'admin, via la page Paramètres ou directement via l'API :</p>
+  <pre>
+POST /api/v1/auth/register
+Authorization: Bearer {token_admin}
+{
+  <span class="string">"email"</span>: <span class="string">"auditeur@entreprise.fr"</span>,
+  <span class="string">"password"</span>: <span class="string">"MotDePasseForte123!"</span>,
+  <span class="string">"full_name"</span>: <span class="string">"Jean Dupont"</span>,
+  <span class="string">"role"</span>: <span class="string">"auditor"</span>
+}</pre>
+
+  <h3>Étape 4 — Créer une mission</h3>
+  <p>Sur le dashboard, cliquer "Nouvelle mission" et remplir :</p>
+  <ul>
+    <li><strong>Nom du client :</strong> ex. "Acme Corp"</li>
+    <li><strong>Code mission :</strong> ex. "AUDIT-2026-0042" (unique)</li>
+    <li><strong>Description :</strong> contexte de la mission</li>
+  </ul>
+
+  <h3>Étape 5 — Uploader le fichier BloodHound</h3>
+  <p>Sur la page de la mission, glisser-déposer le fichier <code>.json</code> exporté depuis BloodHound (ou utiliser le bouton "Parcourir"). Le pipeline démarre automatiquement.</p>
+  <p><strong>Pour tester :</strong> utiliser le fichier exemple fourni : <code>backend/data/sample_graph.json</code></p>
+
+  <h3>Étape 6 — Suivre la progression</h3>
+  <p>La barre de progression se met à jour en temps réel via WebSocket :</p>
+  <ul>
+    <li>5% — Ingestion du graphe BloodHound</li>
+    <li>25% — Extraction des chemins d'attaque</li>
+    <li>40% — Enrichissement MITRE ATT&amp;CK</li>
+    <li>55% — Analyse par l'agent IA</li>
+    <li>85% — Sauvegarde des résultats</li>
+    <li>100% — Terminé !</li>
+  </ul>
+  <div class="callout warn">
+    <div class="callout-title">Durée</div>
+    En mode mock LLM (tests) : ~10 secondes. Avec un vrai LLM sur un graphe de 100 nœuds : 2-5 minutes selon le provider et le nombre de chemins.
+  </div>
+
+  <h3>Étape 7 — Explorer les résultats</h3>
+  <p>Une fois l'analyse terminée :</p>
+  <ul>
+    <li>Cliquer "Voir les chemins" → tableau paginé avec filtres (par niveau de risque, score, technique MITRE)</li>
+    <li>Cliquer sur un chemin → page de détail complète</li>
+    <li>Explorer la visualisation graphique (Cytoscape.js) sur la page Mission</li>
+  </ul>
+
+  <h3>Étape 8 — Télécharger le rapport</h3>
+  <p>Bouton "Télécharger le rapport PDF" sur la page Mission → fichier PDF multi-pages généré à la volée.</p>
+
+  <h3>Étape 9 — Guides de remédiation</h3>
+  <ul>
+    <li>Par chemin : bouton "Guide de remédiation" sur la page Détail → fichier Markdown avec commandes PowerShell</li>
+    <li>Tout d'un coup : bouton "Bundle remédiation ZIP" sur la page Mission → archive avec tous les guides</li>
+  </ul>
+
+  <h3>Changer le provider LLM</h3>
+  <p>Page Paramètres (admin uniquement) → sélectionner le provider → entrer la clé API → Tester la connexion → Sauvegarder. Le changement est pris en compte immédiatement, sans redémarrage.</p>
+
+  <h3>Mode développement</h3>
+  <pre>
+<span class="comment"># Hot reload + ports exposés + LLM Mock</span>
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+<span class="comment"># Accéder à Swagger UI</span>
+http://localhost:8000/docs
+
+<span class="comment"># Lancer les tests</span>
+docker compose exec backend pytest backend/tests -v
+
+<span class="comment"># Appliquer les migrations</span>
+docker compose exec backend alembic upgrade head
+
+<span class="comment"># Voir les logs backend</span>
+docker compose logs -f backend</pre>
+</div>
+
+<!-- ============================= SECTION 9 ============================= -->
+<div class="section" id="s9">
+  <div class="section-header">
+    <div class="section-num">9</div>
+    <h2>Sécurité &amp; Configuration</h2>
+  </div>
+
+  <h3>Variables d'environnement essentielles</h3>
+  <table>
+    <thead><tr><th>Variable</th><th>Valeur exemple</th><th>Importance</th></tr></thead>
+    <tbody>
+      <tr><td><code>APP_SECRET_KEY</code></td><td>64 caractères aléatoires</td><td><span class="badge critique">Critique</span> — signature JWT</td></tr>
+      <tr><td><code>APP_ENV</code></td><td><code>production</code></td><td>Active les garde-fous de sécurité</td></tr>
+      <tr><td><code>ANTHROPIC_API_KEY</code></td><td><code>sk-ant-...</code></td><td>Clé LLM par défaut</td></tr>
+      <tr><td><code>POSTGRES_PASSWORD</code></td><td>Mot de passe fort</td><td><span class="badge eleve">Élevé</span> — ne pas laisser "changeme"</td></tr>
+      <tr><td><code>NEO4J_PASSWORD</code></td><td>Mot de passe fort</td><td><span class="badge eleve">Élevé</span></td></tr>
+      <tr><td><code>SEED_ADMIN_PASSWORD</code></td><td>Mot de passe fort</td><td><span class="badge moyen">Moyen</span> — changer dès la 1ère connexion</td></tr>
+      <tr><td><code>LLM_PROVIDER</code></td><td><code>anthropic</code> ou <code>ollama</code></td><td>Pour missions sensibles : choisir <code>ollama</code> (100% local)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>RBAC (Contrôle d'accès par rôle)</h3>
+  <table>
+    <thead><tr><th>Action</th><th>Admin</th><th>Manager</th><th>Auditeur</th></tr></thead>
+    <tbody>
+      <tr><td>Créer des utilisateurs</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+      <tr><td>Configurer LLM</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+      <tr><td>Créer des missions</td><td class="check">✓</td><td class="check">✓</td><td class="cross">✗</td></tr>
+      <tr><td>Uploader des analyses</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td>Voir les chemins</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td>Télécharger PDF</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td></tr>
+      <tr><td>Supprimer une mission</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Génération d'une clé secrète</h3>
+  <pre>
+<span class="comment"># Python (recommandé)</span>
+python -c "import secrets; print(secrets.token_hex(32))"
+
+<span class="comment"># PowerShell</span>
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))</pre>
+
+  <div class="callout danger">
+    <div class="callout-title">Avant de passer en production</div>
+    <ul style="margin:0;padding-left:20px">
+      <li>Changer <code>APP_SECRET_KEY</code> (la valeur par défaut fait planter l'app en mode production — c'est voulu)</li>
+      <li>Changer tous les mots de passe "changeme"</li>
+      <li>Restreindre les origines CORS à votre domaine dans <code>APP_BASE_URL</code></li>
+      <li>Ne jamais committer le fichier <code>.env</code> dans git</li>
+    </ul>
+  </div>
+
+  <h3>Mode Ollama — 100% local</h3>
+  <p>Pour les missions très sensibles où les données AD ne doivent pas quitter l'infrastructure :</p>
+  <pre>
+<span class="comment"># .env</span>
+LLM_PROVIDER=ollama
+OLLAMA_BASE_URL=http://ollama:11434
+OLLAMA_MODEL=llama3.1:8b
+
+<span class="comment"># docker-compose.yml — ajouter le service</span>
+ollama:
+  image: ollama/ollama
+  volumes:
+    - ollama_data:/root/.ollama</pre>
+
+  <h3>Audit trail</h3>
+  <p>Toutes les actions importantes sont tracées dans la table <code>audit_logs</code> : upload de fichier, téléchargement de rapport, modification de configuration, connexions… Chaque entrée contient l'utilisateur, l'IP, la ressource, et les métadonnées de l'action.</p>
+</div>
+
+<!-- ============================= SECTION 10 ============================= -->
+<div class="section" id="s10">
+  <div class="section-header">
+    <div class="section-num">10</div>
+    <h2>Suggestions d'amélioration — V2</h2>
+  </div>
+
+  <p>Voici 20 idées concrètes, classées par impact et effort, pour faire passer la plateforme au niveau supérieur :</p>
+
+  <h3>Fonctionnalités haute valeur</h3>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">📊</div>
+    <div class="suggestion-content">
+      <h4>Mode diff — Comparaison avant/après remédiation</h4>
+      <p>Permettre de comparer deux analyses d'un même client (avant et après corrections). Afficher quels chemins ont été supprimés, lesquels persistent, et le gain de sécurité en pourcentage. Extrêmement précieux pour démontrer la valeur de la mission au client.</p>
+      <span class="suggestion-pill pill-high">Impact : Élevé</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">📈</div>
+    <div class="suggestion-content">
+      <h4>Score de maturité AD (0-100)</h4>
+      <p>Calculer un score global de sécurité AD basé sur le nombre et la sévérité des chemins. Suivre son évolution dans le temps sur un graphique de tendance. Remplacer le tableau de chemins par une vue "scorecard" pour les présentations exécutives.</p>
+      <span class="suggestion-pill pill-high">Impact : Élevé</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🎯</div>
+    <div class="suggestion-content">
+      <h4>Tier Model Microsoft (T0/T1/T2)</h4>
+      <p>Classifier automatiquement les nœuds selon le modèle de niveaux de Microsoft (T0 = DC et comptes admin critiques, T1 = serveurs applicatifs, T2 = postes utilisateurs). Mettre en évidence les violations de tier (ex : T2 → T0 en 3 sauts).</p>
+      <span class="suggestion-pill pill-high">Impact : Élevé</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🔗</div>
+    <div class="suggestion-content">
+      <h4>Connecteur Azure AD / Entra ID</h4>
+      <p>Étendre la collecte aux environnements cloud Microsoft (Azure AD, Entra ID). De plus en plus d'entreprises sont en hybride on-prem + cloud. Ajouter les relations Entra-spécifiques (AppRoleAssignment, ConditionalAccess bypass, etc.).</p>
+      <span class="suggestion-pill pill-high">Impact : Élevé</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">📤</div>
+    <div class="suggestion-content">
+      <h4>Export STIX 2.1 pour SIEM</h4>
+      <p>Exporter les chemins d'attaque et techniques MITRE au format STIX 2.1 (standard CTI). Permet l'intégration avec des SIEM comme Splunk, Microsoft Sentinel ou Elastic SIEM pour corréler les chemins détectés avec les alertes en cours.</p>
+      <span class="suggestion-pill pill-med">Impact : Moyen</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">👥</div>
+    <div class="suggestion-content">
+      <h4>Mode collaboratif multi-auditeur</h4>
+      <p>Permettre à plusieurs auditeurs d'annoter les chemins (commentaires, statuts "en cours de remédiation", "faux positif", "accepté"). Notifications en temps réel sur les mises à jour de collègues. Parfait pour les missions en équipe.</p>
+      <span class="suggestion-pill pill-med">Impact : Moyen</span>
+    </div>
+  </div>
+
+  <h3>Amélioration de l'analyse IA</h3>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🧠</div>
+    <div class="suggestion-content">
+      <h4>Fine-tuning sur données validées</h4>
+      <p>Collecter les annotations des auditeurs (correction des scores, reformulation des explications) pour fine-tuner un modèle local (Llama 3, Mistral) spécialisé AD. Réduire les coûts API tout en améliorant la précision des analyses.</p>
+      <span class="suggestion-pill pill-med">Impact : Élevé long terme</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">⚡</div>
+    <div class="suggestion-content">
+      <h4>Analyse parallèle des chemins</h4>
+      <p>Traiter les batches LLM en parallèle avec <code>asyncio.gather()</code> au lieu de séquentiellement. Réduire le temps d'analyse de 10x sur un graphe de 100 chemins (de ~10 min à ~1 min avec un provider permissif).</p>
+      <span class="suggestion-pill pill-high">Impact : Performance</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🔄</div>
+    <div class="suggestion-content">
+      <h4>Re-analyse ciblée</h4>
+      <p>Permettre de re-lancer l'analyse LLM sur un seul chemin (si le résultat initial semble incorrect) sans refaire toute l'analyse. Ajouter un bouton "Ré-analyser" sur la page de détail.</p>
+      <span class="suggestion-pill pill-low">Impact : UX</span>
+    </div>
+  </div>
+
+  <h3>UX et présentation</h3>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🌙</div>
+    <div class="suggestion-content">
+      <h4>Mode sombre</h4>
+      <p>Ajouter un thème sombre (dark mode) pour le travail de nuit ou les préférences personnelles. Utiliser CSS custom properties déjà en place — il suffit d'overrider les variables dans une classe <code>.dark</code>.</p>
+      <span class="suggestion-pill pill-low">Impact : UX</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">📱</div>
+    <div class="suggestion-content">
+      <h4>Application mobile (PWA)</h4>
+      <p>Transformer le frontend en Progressive Web App (PWA) pour consultation sur téléphone lors des réunions client. Notifications push quand une analyse se termine.</p>
+      <span class="suggestion-pill pill-low">Impact : Mobilité</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🎨</div>
+    <div class="suggestion-content">
+      <h4>Rapport personnalisable</h4>
+      <p>Permettre à l'auditeur de sélectionner les sections à inclure dans le PDF (ex : "inclure annexe conformité ? oui/non"), choisir le logo client, modifier le texte de couverture. Rendre le rapport 100% sur-mesure.</p>
+      <span class="suggestion-pill pill-med">Impact : Commercial</span>
+    </div>
+  </div>
+
+  <h3>Sécurité et opérations</h3>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🔐</div>
+    <div class="suggestion-content">
+      <h4>Chiffrement des clés API en base</h4>
+      <p>Les clés API LLM sont actuellement stockées en clair dans PostgreSQL. Ajouter un chiffrement Fernet (AES-256) avec une clé dérivée de <code>APP_SECRET_KEY</code>. En cas de fuite de la base, les clés restent inutilisables.</p>
+      <span class="suggestion-pill pill-high">Impact : Sécurité critique</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🚦</div>
+    <div class="suggestion-content">
+      <h4>Rate limiting sur l'API</h4>
+      <p>Ajouter slowapi (basé sur redis) pour limiter le nombre de requêtes par IP/utilisateur. Protéger l'endpoint de login contre le brute-force (max 10 tentatives / 15 min par IP).</p>
+      <span class="suggestion-pill pill-high">Impact : Sécurité</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🔔</div>
+    <div class="suggestion-content">
+      <h4>Notifications Slack / Email</h4>
+      <p>Envoyer une notification quand une analyse se termine ou échoue. Alerter si un chemin Critique est découvert. Utile pour les analyses longues lancées la nuit.</p>
+      <span class="suggestion-pill pill-low">Impact : Productivité</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">📥</div>
+    <div class="suggestion-content">
+      <h4>Visualiseur d'audit logs</h4>
+      <p>Ajouter une page admin pour consulter les audit_logs avec filtres (par utilisateur, par action, par période). Export CSV pour les équipes conformité. Actuellement les logs sont en base mais pas exposés dans l'UI.</p>
+      <span class="suggestion-pill pill-med">Impact : Conformité</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🌐</div>
+    <div class="suggestion-content">
+      <h4>Multi-langue</h4>
+      <p>Ajouter le support de l'anglais pour les équipes internationales (les rapports seraient en EN ou FR selon la config de la mission). Utiliser i18n côté frontend et paramètrer la langue du prompt LLM par mission.</p>
+      <span class="suggestion-pill pill-low">Impact : International</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">🤝</div>
+    <div class="suggestion-content">
+      <h4>Intégration ticketing (Jira, ServiceNow)</h4>
+      <p>Créer automatiquement des tickets dans Jira ou ServiceNow pour chaque chemin critique, avec le score, l'explication, et la recommandation. Permet de suivre la remédiation dans les outils existants du client.</p>
+      <span class="suggestion-pill pill-med">Impact : Workflow entreprise</span>
+    </div>
+  </div>
+
+  <div class="suggestion-card">
+    <div class="suggestion-icon">📋</div>
+    <div class="suggestion-content">
+      <h4>Templates de missions</h4>
+      <p>Créer des templates de mission prédéfinis (ex : "Audit initial", "Contrôle post-remédiation", "Audit annuel") avec les paramètres LLM, les filtres de chemins et les sections de rapport préconfigurés. Réduire le temps de mise en place.</p>
+      <span class="suggestion-pill pill-low">Impact : Productivité</span>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+  <div style="text-align:center;color:var(--stone);font-size:12px;padding-bottom:40px;">
+    <div style="font-weight:700;color:var(--graphite);margin-bottom:6px;">AD Audit AI — Guide Technique Complet</div>
+    Document confidentiel — Usage interne uniquement
+    <br>Généré le 2 mai 2026
+  </div>
+</div>
+
+</body>
+</html>

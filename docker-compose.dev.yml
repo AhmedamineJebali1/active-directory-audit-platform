@@ -1,0 +1,38 @@
+version: "3.9"
+
+# Dev override: hot reload, exposed ports, mock LLM
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  neo4j:
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: dev
+    volumes:
+      - ./backend:/app
+      - app_data:/data
+    environment:
+      APP_ENV: development
+      LOG_LEVEL: DEBUG
+      LLM_PROVIDER: mock
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+
+  caddy:
+    image: caddy:2-alpine
+    volumes:
+      - ./caddy/Caddyfile.dev:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"

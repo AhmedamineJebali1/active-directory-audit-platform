@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Rapport d'Audit AD — {{ engagement.code if engagement else 'N/A' }}</title>
+<link rel="stylesheet" href="report_styles.css">
+<style>
+  /* Footer text for CSS string() */
+  #footer-text { display: none; }
+</style>
+</head>
+<body>
+
+<span id="footer-text">{{ footer_text }} — {{ engagement.code if engagement else 'Audit AD' }} — {{ generated_at }}</span>
+
+<!-- ========== COVER PAGE ========== -->
+<div class="cover">
+  <div class="cover-header">
+    <div class="cover-logo">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 55" width="220" height="55">
+        <rect x="0" y="0" width="44" height="44" fill="#86BC25" rx="3"/>
+        <text x="22" y="28" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">AD</text>
+        <text x="54" y="20" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="white">{{ brand_name }}</text>
+        <text x="54" y="38" font-family="Arial, sans-serif" font-size="9" fill="#86BC25">Security Audit Platform</text>
+      </svg>
+    </div>
+    <div class="cover-title">Rapport d'Audit<br>Active Directory</div>
+    <div class="cover-subtitle">Analyse automatisée des chemins d'attaque</div>
+  </div>
+
+  <div class="cover-body">
+    <div class="cover-meta">
+      <div class="cover-meta-item">
+        <label>Client</label>
+        <value>{{ engagement.client_name if engagement else 'N/A' }}</value>
+      </div>
+      <div class="cover-meta-item">
+        <label>Code mission</label>
+        <value>{{ engagement.code if engagement else 'N/A' }}</value>
+      </div>
+      <div class="cover-meta-item">
+        <label>Date du rapport</label>
+        <value>{{ generated_at }}</value>
+      </div>
+      <div class="cover-meta-item">
+        <label>Chemins d'attaque</label>
+        <value>{{ paths|length }} identifiés</value>
+      </div>
+    </div>
+
+    {% set verdict = exec_summary.get('verdict_global', 'Élevé') %}
+    {% set verdict_class = 'critique' if verdict == 'Critique' else ('eleve' if verdict == 'Élevé' else ('moyen' if verdict == 'Moyen' else 'faible')) %}
+    <div class="cover-verdict {{ verdict_class }}">
+      <div class="cover-verdict-label">Niveau de risque global</div>
+      <div class="cover-verdict-value">{{ verdict }}</div>
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    {{ footer_text }} — Document de travail — Ne pas diffuser sans autorisation
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ========== TABLE OF CONTENTS ========== -->
+<div class="section">
+  <h1>Sommaire</h1>
+  <div class="toc">
+    <div class="toc-item"><span><span class="toc-number">1.</span> Synthèse exécutive</span><span>3</span></div>
+    <div class="toc-item"><span><span class="toc-number">2.</span> Vue d'ensemble des chemins d'attaque</span><span>4</span></div>
+    <div class="toc-item"><span><span class="toc-number">3.</span> Analyse détaillée des chemins critiques et élevés</span><span>5</span></div>
+    <div class="toc-item"><span><span class="toc-number">4.</span> Annexe A — Matrice MITRE ATT&CK</span><span>N</span></div>
+    <div class="toc-item"><span><span class="toc-number">5.</span> Annexe B — Conformité ISO 27001 / NIST CSF</span><span>N</span></div>
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ========== SECTION 1 — SYNTHÈSE EXÉCUTIVE ========== -->
+<div class="section">
+  <h1>1. Synthèse exécutive</h1>
+
+  <div class="stats-grid">
+    <div class="stat-card critique">
+      <div class="stat-number">{{ risk_counts.get('critique', 0) }}</div>
+      <div class="stat-label">Critique</div>
+    </div>
+    <div class="stat-card eleve">
+      <div class="stat-number">{{ risk_counts.get('eleve', 0) }}</div>
+      <div class="stat-label">Élevé</div>
+    </div>
+    <div class="stat-card moyen">
+      <div class="stat-number">{{ risk_counts.get('moyen', 0) }}</div>
+      <div class="stat-label">Moyen</div>
+    </div>
+    <div class="stat-card faible">
+      <div class="stat-number">{{ risk_counts.get('faible', 0) }}</div>
+      <div class="stat-label">Faible</div>
+    </div>
+  </div>
+
+  <p>{{ exec_summary.get('resume_executif', '') }}</p>
+
+  {% if exec_summary.get('principaux_risques') %}
+  <h2>Principaux risques identifiés</h2>
+  <ul>
+    {% for risque in exec_summary.get('principaux_risques', []) %}
+    <li>{{ risque }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  {% if exec_summary.get('recommandations_prioritaires') %}
+  <h2>Recommandations prioritaires</h2>
+  <table>
+    <thead>
+      <tr>
+        <th width="8%">N°</th>
+        <th width="65%">Action recommandée</th>
+        <th width="27%">Urgence</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for rec in exec_summary.get('recommandations_prioritaires', []) %}
+      <tr>
+        <td><strong>{{ rec.get('priorite', '') }}</strong></td>
+        <td>{{ rec.get('action', '') }}</td>
+        <td>
+          {% set urgence = rec.get('urgence', '') %}
+          {% if urgence == 'Immédiate' %}
+          <span class="badge badge-critique">{{ urgence }}</span>
+          {% elif urgence == 'Court terme' %}
+          <span class="badge badge-eleve">{{ urgence }}</span>
+          {% else %}
+          <span class="badge badge-faible">{{ urgence }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if exec_summary.get('feuille_de_route') %}
+  <h2>Feuille de route</h2>
+  <div class="recommendation-box">
+    <p>{{ exec_summary.get('feuille_de_route', '') }}</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="page-break"></div>
+
+<!-- ========== SECTION 2 — VUE D'ENSEMBLE ========== -->
+<div class="section">
+  <h1>2. Vue d'ensemble des chemins d'attaque</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th width="5%">#</th>
+        <th width="25%">Source</th>
+        <th width="25%">Cible</th>
+        <th width="8%">Sauts</th>
+        <th width="12%">Niveau</th>
+        <th width="12%">Score global</th>
+        <th width="13%">Techniques MITRE</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for path in paths %}
+      {% set rl = path.risk_level or 'moyen' %}
+      <tr>
+        <td>{{ loop.index }}</td>
+        <td>{{ path.source_node[:40] }}</td>
+        <td>{{ path.target_node[:40] }}</td>
+        <td style="text-align:center">{{ path.length }}</td>
+        <td><span class="badge badge-{{ rl }}">{{ rl | upper }}</span></td>
+        <td style="text-align:center">{{ "%.1f"|format(path.global_score) if path.global_score is not none else '—' }}/10</td>
+        <td>{{ path.mitre_techniques|length }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="page-break"></div>
+
+<!-- ========== SECTION 3 — DÉTAIL CHEMINS CRITIQUES & ÉLEVÉS ========== -->
+<div class="section">
+  <h1>3. Analyse détaillée des chemins à risque élevé</h1>
+
+  {% set high_priority_paths = paths | selectattr('risk_level', 'in', ['critique', 'eleve']) | list %}
+  {% if not high_priority_paths %}
+    <p>Aucun chemin à risque élevé ou critique identifié.</p>
+  {% else %}
+    {% for path in high_priority_paths %}
+    {% set rl = path.risk_level or 'moyen' %}
+    <div class="path-card no-break">
+      <div class="path-card-header">
+        <div>
+          <strong>Chemin #{{ loop.index }}</strong>
+          <span style="color: #666; margin-left: 4mm;">{{ path.source_node[:50] }} → {{ path.target_node[:50] }}</span>
+        </div>
+        <span class="badge badge-{{ rl }}">{{ rl | upper }}</span>
+      </div>
+      <div class="path-card-body">
+
+        <div class="scores-row">
+          <div class="score-item">
+            <div class="score-value">{{ "%.0f"|format(path.exploitability_score) if path.exploitability_score is not none else '—' }}/10</div>
+            <div class="score-label">Exploitabilité</div>
+          </div>
+          <div class="score-item">
+            <div class="score-value">{{ "%.0f"|format(path.stealth_score) if path.stealth_score is not none else '—' }}/10</div>
+            <div class="score-label">Furtivité</div>
+          </div>
+          <div class="score-item">
+            <div class="score-value">{{ "%.1f"|format(path.global_score) if path.global_score is not none else '—' }}/10</div>
+            <div class="score-label">Score global</div>
+          </div>
+        </div>
+
+        <h3>Visualisation du chemin</h3>
+        <div class="path-hops">
+          {% for hop in path.hops %}
+          <div class="hop-line">
+            <span class="hop-node">{{ hop.source_label[:35] }}</span>
+            <span class="hop-arrow">──</span>
+            <span class="hop-edge">[{{ hop.edge_type }}]</span>
+            <span class="hop-arrow">──▶</span>
+            {% if loop.last %}
+            <span class="hop-node" style="background: #FFEBEE; border-color: #EF9A9A;">{{ hop.target_label[:35] }}</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        {% if path.mitre_techniques %}
+        <h3>Techniques MITRE ATT&CK</h3>
+        <div>
+          {% for tech in path.mitre_techniques %}
+          <span class="badge badge-technique">{{ tech.technique_id }} — {{ tech.technique_name[:40] }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if path.explanation_fr %}
+        <h3>Analyse</h3>
+        <div class="explanation-box">
+          <p>{{ path.explanation_fr }}</p>
+        </div>
+        {% endif %}
+
+        {% if path.recommendation_fr %}
+        <h3>Recommandations</h3>
+        <div class="recommendation-box">
+          <p>{{ path.recommendation_fr }}</p>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
+</div>
+
+<div class="page-break"></div>
+
+<!-- ========== ANNEXE A — MITRE ATT&CK ========== -->
+<div class="section">
+  <h1>Annexe A — Matrice MITRE ATT&CK</h1>
+  <p>Techniques détectées dans cette analyse, regroupées par tactique.</p>
+
+  {% set tactics_order = ['Initial Access', 'Execution', 'Persistence', 'Privilege Escalation', 'Defense Evasion', 'Credential Access', 'Discovery', 'Lateral Movement', 'Impact'] %}
+  {% set techniques_by_tactic = {} %}
+  {% for tid, tech in all_mitre.items() %}
+    {% set tactic = tech.tactic %}
+    {% if tactic not in techniques_by_tactic %}
+      {% set _ = techniques_by_tactic.update({tactic: []}) %}
+    {% endif %}
+    {% set _ = techniques_by_tactic[tactic].append(tech) %}
+  {% endfor %}
+
+  {% for tactic in tactics_order %}
+  {% if tactic in techniques_by_tactic %}
+  <div class="no-break" style="margin-bottom: 6mm;">
+    <h3 style="background: var(--color-cloud); padding: 2mm 4mm; border-radius: 4px;">{{ tactic }}</h3>
+    {% for tech in techniques_by_tactic[tactic] %}
+    <div class="compliance-item" style="padding: 2mm 4mm;">
+      <span class="mitre-tech-id">{{ tech.id }}</span>
+      — {{ tech.name }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endfor %}
+
+  {% for tactic, techs in techniques_by_tactic.items() %}
+  {% if tactic not in tactics_order %}
+  <div class="no-break" style="margin-bottom: 6mm;">
+    <h3 style="background: var(--color-cloud); padding: 2mm 4mm; border-radius: 4px;">{{ tactic }}</h3>
+    {% for tech in techs %}
+    <div class="compliance-item" style="padding: 2mm 4mm;">
+      <span class="mitre-tech-id">{{ tech.id }}</span>
+      — {{ tech.name }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<div class="page-break"></div>
+
+<!-- ========== ANNEXE B — CONFORMITÉ ========== -->
+<div class="section">
+  <h1>Annexe B — Conformité ISO 27001 / NIST CSF</h1>
+  <p>Mapping des techniques identifiées vers les contrôles de conformité applicables.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th width="15%">Technique MITRE</th>
+        <th width="30%">Contrôles ISO 27001</th>
+        <th width="25%">NIST CSF</th>
+        <th width="30%">Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for tid, tech in all_mitre.items() %}
+      {% if tid in compliance %}
+      {% set comp = compliance[tid] %}
+      <tr>
+        <td><span class="mitre-tech-id">{{ tid }}</span></td>
+        <td class="compliance-controls">{{ comp.get('iso27001', []) | join(', ') }}</td>
+        <td class="compliance-controls">{{ comp.get('nist_csf', []) | join(', ') }}</td>
+        <td>{{ comp.get('description', '') }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td><span class="mitre-tech-id">{{ tid }}</span></td>
+        <td colspan="3" style="color: #999; font-style: italic;">Pas de mapping disponible</td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

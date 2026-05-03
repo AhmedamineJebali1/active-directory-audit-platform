@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60">
+  <rect width="200" height="60" fill="#1A1A1A" rx="4"/>
+  <rect x="8" y="8" width="44" height="44" fill="#86BC25" rx="3"/>
+  <text x="30" y="32" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="middle">AD</text>
+  <text x="68" y="22" font-family="Inter, Arial, sans-serif" font-size="13" font-weight="bold" fill="white">AD Audit AI</text>
+  <text x="68" y="40" font-family="Inter, Arial, sans-serif" font-size="9" fill="#86BC25">Security Audit Platform</text>
+</svg>

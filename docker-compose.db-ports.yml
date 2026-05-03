@@ -1,0 +1,12 @@
+# Expose database ports to localhost for GUI tools (pgAdmin, DBeaver, Neo4j Browser).
+# Usage: docker compose -f docker-compose.yml -f docker-compose.db-ports.yml up -d postgres neo4j
+# Does NOT touch the backend or frontend — safe to use with the running production stack.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"   # localhost only — not reachable from LAN
+
+  neo4j:
+    ports:
+      - "127.0.0.1:7474:7474"   # Neo4j Browser — localhost only
+      - "127.0.0.1:7687:7687"   # Bolt — localhost only

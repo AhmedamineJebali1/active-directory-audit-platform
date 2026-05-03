@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  backend:
+    name: Backend (lint + test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Install system deps for WeasyPrint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libgdk-pixbuf-2.0-0 \
+            libffi-dev libcairo2 shared-mime-info fonts-dejavu-core
+
+      - name: Install Python deps
+        run: uv pip install --system -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check app/ tests/ || true
+
+      - name: Run tests
+        env:
+          APP_SECRET_KEY: ci-test-secret-key-not-for-production-use-only
+          LLM_PROVIDER: mock
+        run: pytest tests -q --tb=short
+
+  docker-build:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t adaudit-backend:ci backend
+      - name: Build frontend image
+        run: docker build -t adaudit-frontend:ci frontend

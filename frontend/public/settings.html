@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Configuration IA — AD Audit AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=11" />
+  <link rel="stylesheet" href="/css/redesign.css?v=11" />
+  <link rel="stylesheet" href="/css/base.css?v=11" />
+  <link rel="stylesheet" href="/css/components.css?v=11" />
+  <link rel="stylesheet" href="/css/dashboard.css?v=11" />
+  <script src="/js/api.js?v=11"></script>
+  <script src="/js/auth.js?v=11"></script>
+  <script src="/js/settings.js?v=11"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+
+  <style>
+    .settings-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 860px) { .settings-layout { grid-template-columns: 1fr; } }
+
+    /* Provider list */
+    .provider-list { display: flex; flex-direction: column; gap: 4px; }
+    .provider-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 100ms;
+      border: 1.5px solid transparent;
+      position: relative;
+    }
+    .provider-item:hover { background: rgba(255,255,255,0.04); }
+    .provider-item.selected {
+      background: rgba(134,188,37,0.07);
+      border-color: rgba(134,188,37,0.3);
+    }
+    .provider-item.active-badge::after {
+      content: 'ACTIF';
+      position: absolute;
+      right: 12px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: var(--color-accent);
+      font-family: var(--font-mono);
+    }
+    .provider-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      flex-shrink: 0;
+    }
+    .provider-info { flex: 1; min-width: 0; }
+    .provider-name { font-size: 14px; font-weight: 600; color: #fff; }
+    .provider-desc { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Config panel */
+    .config-panel { display: flex; flex-direction: column; gap: 20px; }
+    .config-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.09em; color: rgba(255,255,255,0.3); margin-bottom: 10px;
+    }
+    .model-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 8px;
+    }
+    .model-chip {
+      padding: 9px 14px;
+      border-radius: 7px;
+      border: 1.5px solid rgba(255,255,255,0.08);
+      cursor: pointer;
+      font-size: 13px;
+      font-family: var(--font-mono);
+      color: rgba(255,255,255,0.6);
+      transition: all 100ms;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .model-chip:hover { border-color: rgba(255,255,255,0.2); color: #fff; }
+    .model-chip.selected-model {
+      border-color: var(--color-accent);
+      background: rgba(134,188,37,0.08);
+      color: var(--color-accent);
+    }
+
+    /* API key */
+    .key-input-wrap { position: relative; }
+    .key-input-wrap input { padding-right: 80px; }
+    .key-toggle {
+      position: absolute; right: 12px; top: 50%;
+      transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      font-size: 12px; color: rgba(255,255,255,0.35);
+      font-family: var(--font-sans);
+      padding: 0;
+    }
+    .key-toggle:hover { color: rgba(255,255,255,0.7); }
+
+    /* Status banner */
+    .status-banner {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      border: 1px solid;
+    }
+    .status-banner.ok { background: rgba(134,188,37,0.07); border-color: rgba(134,188,37,0.25); }
+    .status-banner.warn { background: rgba(237,139,0,0.07); border-color: rgba(237,139,0,0.25); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Provider colors */
+    .icon-mistral   { background: rgba(255,106,0,0.15);  color: #FF6A00; }
+    .icon-anthropic { background: rgba(204,85,0,0.15);   color: #CC5500; }
+    .icon-openai    { background: rgba(16,163,127,0.15); color: #10A37F; }
+    .icon-google    { background: rgba(66,133,244,0.15); color: #4285F4; }
+    .icon-openrouter{ background: rgba(101,71,255,0.15); color: #6547FF; }
+    .icon-ollama    { background: rgba(255,255,255,0.08);color: rgba(255,255,255,0.6); }
+    .icon-mock      { background: rgba(255,255,255,0.05);color: rgba(255,255,255,0.3); }
+    .icon-azure     { background: rgba(0,120,212,0.15);  color: #0078D4; }
+  </style>
+</head>
+<body class="has-mesh-bg">
+  <div class="app-shell" id="app-shell">
+    <div id="nav-slot"></div>
+
+    <div>
+      <header class="topbar">
+        <div>
+          <div class="topbar__breadcrumb"><a href="/dashboard.html" style="color:inherit;text-decoration:none;">Tableau de bord</a> / Configuration</div>
+          <div class="topbar__title">Configuration LLM</div>
+        </div>
+        <div class="topbar__spacer"></div>
+      </header>
+
+  <div class="main-content" x-data="settingsApp()" x-init="init()">
+    <template x-if="loading">
+      <div class="empty-state"><span class="spinner"></span></div>
+    </template>
+
+    <template x-if="!loading">
+      <div>
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Configuration IA</h1>
+            <p class="page-subtitle">Sélectionnez le fournisseur d'IA utilisé pour l'analyse des chemins d'attaque Active Directory.</p>
+          </div>
+
+          <!-- Current status -->
+          <template x-if="currentConfig">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+              <div class="status-banner" :class="currentConfig.provider !== 'mock' ? 'ok' : 'warn'" style="flex:1;min-width:240px;">
+                <div class="status-dot" :style="currentConfig.provider !== 'mock' ? 'background:var(--color-accent)' : 'background:var(--risk-eleve)'"></div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;" x-text="providerLabel(currentConfig.provider) + ' — ' + currentConfig.model"></div>
+                  <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;" x-text="currentConfig.provider === 'mock' ? 'Mode démo — aucune analyse réelle' : (currentConfig.has_api_key ? 'Clé API configurée' : 'Clé API manquante')"></div>
+                </div>
+              </div>
+              <button class="btn btn-secondary btn-sm" @click="testConnection()" :disabled="testing"
+                      style="white-space:nowrap;flex-shrink:0;">
+                <span x-show="!testing" style="display:flex;align-items:center;gap:6px;">
+                  <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 6.5h4M6.5 4.5v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                  Tester la connexion
+                </span>
+                <span x-show="testing" style="display:flex;align-items:center;gap:6px;">
+                  <span class="spinner" style="width:11px;height:11px;border-width:2px;"></span>
+                  Test en cours…
+                </span>
+              </button>
+            </div>
+          </template>
+          <template x-if="testResult">
+            <div :class="testResult.success ? 'alert alert-success' : 'alert alert-error'"
+                 style="margin-top:10px;margin-bottom:0;">
+              <strong x-text="testResult.success ? '✓ Connexion réussie' : '✗ Connexion échouée'"></strong>
+              <span x-text="' — ' + testResult.message"></span>
+            </div>
+          </template>
+        </div>
+
+        <div class="page-content">
+
+          <div class="settings-layout">
+
+            <!-- ── Provider list ─────────────────── -->
+            <div class="card">
+              <div class="card-header" style="padding-bottom:10px;">
+                <span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:rgba(255,255,255,0.35);">Fournisseurs</span>
+              </div>
+              <div class="card-body" style="padding:4px 0 8px;">
+                <div class="provider-list">
+                  <template x-for="(meta, key) in providers" :key="key">
+                    <div class="provider-item"
+                         :class="[selected === key ? 'selected' : '', isActive(key) ? 'active-badge' : '']"
+                         @click="selectProvider(key)">
+                      <div class="provider-icon" :class="'icon-' + key" x-text="providerInitial(key)"></div>
+                      <div class="provider-info">
+                        <div class="provider-name" x-text="meta.label"></div>
+                        <div class="provider-desc" style="display:flex;align-items:center;gap:6px;">
+                          <template x-if="hasKey(key)">
+                            <span style="display:inline-flex;align-items:center;gap:4px;">
+                              <span style="color:var(--color-accent);font-size:10px;">✓</span>
+                              <span style="color:var(--color-accent);">Validée</span>
+                              <button x-show="isAdmin()" @click.stop="deleteKey(key)"
+                                style="background:none;border:none;cursor:pointer;color:rgba(255,255,255,0.25);font-size:11px;padding:0 2px;line-height:1;" title="Supprimer la clé">×</button>
+                            </span>
+                          </template>
+                          <template x-if="!hasKey(key)">
+                            <span x-text="meta.requires_key ? 'Clé requise' : 'Sans clé'"></span>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Config panel ──────────────────── -->
+            <div x-show="selected" class="config-panel">
+
+              <!-- Model selection -->
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3 style="font-size:15px;font-weight:600;" x-text="selectedMeta.label"></h3>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.4);margin-top:3px;" x-text="selectedMeta.description"></div>
+                  </div>
+                  <template x-if="selectedMeta.docs_url">
+                    <a :href="selectedMeta.docs_url" target="_blank" rel="noopener"
+                       style="font-size:12px;color:var(--color-accent);text-decoration:none;white-space:nowrap;flex-shrink:0;">
+                      Obtenir une clé →
+                    </a>
+                  </template>
+                </div>
+                <div class="card-body" style="display:flex;flex-direction:column;gap:20px;">
+
+                  <!-- Models grid (if available) -->
+                  <template x-if="selectedMeta.models && selectedMeta.models.length > 1">
+                    <div>
+                      <div class="config-section-title">Modèle</div>
+                      <div class="model-grid">
+                        <template x-for="m in selectedMeta.models" :key="m">
+                          <div class="model-chip"
+                               :class="selectedModel === m ? 'selected-model' : ''"
+                               @click="selectedModel = m"
+                               x-text="modelLabel(m)"></div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Custom model input (when no preset list) -->
+                  <template x-if="!selectedMeta.models || selectedMeta.models.length === 0">
+                    <div>
+                      <label class="form-label">Modèle</label>
+                      <input class="form-control" type="text" x-model="selectedModel" placeholder="Nom du modèle" />
+                    </div>
+                  </template>
+
+                  <!-- API Key -->
+                  <template x-if="selectedMeta.requires_key">
+                    <div>
+                      <div class="config-section-title">Clé API</div>
+                      <div class="key-input-wrap">
+                        <input class="form-control" :type="showKey ? 'text' : 'password'" x-model="apiKey"
+                               :placeholder="currentConfig && currentConfig.has_api_key && isActive(selected) ? '••••••••••• (existante)' : 'Entrez votre clé API'" />
+                        <button type="button" class="key-toggle" @click="showKey = !showKey"
+                                x-text="showKey ? 'Masquer' : 'Afficher'"></button>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Feedback — shown right above the button -->
+                  <div x-show="error" style="display:none;"
+                       :style="error ? 'display:block' : 'display:none'">
+                    <div style="background:rgba(200,16,46,0.1);border:1px solid rgba(200,16,46,0.35);border-radius:8px;padding:12px 16px;">
+                      <div style="display:flex;align-items:flex-start;gap:10px;">
+                        <span style="color:var(--risk-critique);font-size:16px;line-height:1;flex-shrink:0;">✕</span>
+                        <div style="flex:1;">
+                          <div style="font-size:13px;font-weight:600;color:#ff6b6b;margin-bottom:4px;">Clé API refusée</div>
+                          <div style="font-size:12px;color:rgba(255,255,255,0.65);line-height:1.5;" x-text="error"></div>
+                          <div x-show="errorIsAuthFail" style="margin-top:10px;">
+                            <button class="btn btn-secondary btn-sm" @click="forceSave()" :disabled="saving"
+                                    style="font-size:11px;border-color:rgba(255,255,255,0.2);">
+                              <span x-show="!saving">Sauvegarder sans valider</span>
+                              <span x-show="saving" style="display:flex;align-items:center;gap:5px;">
+                                <span class="spinner" style="width:10px;height:10px;border-width:2px;"></span>
+                                Sauvegarde…
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div x-show="success">
+                    <div style="background:rgba(134,188,37,0.08);border:1px solid rgba(134,188,37,0.3);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:10px;">
+                      <span style="color:var(--color-accent);font-size:16px;line-height:1;">✓</span>
+                      <div style="font-size:13px;color:rgba(255,255,255,0.8);" x-text="success"></div>
+                    </div>
+                  </div>
+
+                  <!-- Save button -->
+                  <template x-if="isAdmin()">
+                    <div style="display:flex;align-items:center;gap:12px;padding-top:4px;">
+                      <button class="btn btn-primary" @click="save()" :disabled="saving">
+                        <span x-show="!saving">Appliquer</span>
+                        <span x-show="saving" style="display:flex;align-items:center;gap:6px;">
+                          <span class="spinner" style="border-top-color:#000;width:12px;height:12px;border-width:2px;"></span>
+                          <span x-text="apiKey ? 'Validation...' : 'Sauvegarde...'"></span>
+                        </span>
+                      </button>
+                      <span x-show="!saving && isActive(selected)" style="font-size:12px;color:var(--color-accent);">
+                        Fournisseur actif
+                      </span>
+                    </div>
+                  </template>
+                  <template x-if="!isAdmin()">
+                    <div style="font-size:13px;color:rgba(255,255,255,0.35);padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px;">
+                      Seuls les administrateurs peuvent modifier cette configuration.
+                    </div>
+                  </template>
+
+                </div>
+              </div>
+
+              <!-- OpenRouter free models list -->
+              <template x-if="selected === 'openrouter' && providers['openrouter'] && providers['openrouter'].free_models">
+                <div class="card">
+                  <div class="card-header">
+                    <h3 style="font-size:13px;font-weight:600;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.06em;">Modèles sans frais</h3>
+                  </div>
+                  <div class="card-body" style="padding:0;">
+                    <template x-for="m in providers['openrouter'].free_models" :key="m.id">
+                      <div style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-size:13px;" x-text="m.name.replace(' (gratuit)','')" ></span>
+                        <span style="font-size:11px;color:rgba(255,255,255,0.3);font-family:var(--font-mono);" x-text="m.id.split('/')[1] || m.id"></span>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Privacy note for Ollama -->
+              <template x-if="selected === 'ollama'">
+                <div class="card">
+                  <div class="card-body" style="font-size:13px;color:rgba(255,255,255,0.55);line-height:1.7;">
+                    Ollama tourne localement sur votre infrastructure.<br>
+                    Aucune donnée AD n'est envoyée vers l'extérieur.<br>
+                    Assurez-vous qu'Ollama est démarré avec le modèle souhaité :
+                    <code style="font-family:var(--font-mono);font-size:12px;color:var(--color-accent);">ollama run llama3.1:8b</code>
+                  </div>
+                </div>
+              </template>
+
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </template>
+  </div><!-- /main-content -->
+    </div>
+  </div><!-- /app-shell -->
+
+  <style>[x-cloak]{display:none!important}</style>
+</body>
+</html>
