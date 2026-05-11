@@ -10,8 +10,11 @@
   <link rel="stylesheet" href="/css/tokens.css?v=11" />
   <link rel="stylesheet" href="/css/redesign.css?v=11" />
   <link rel="stylesheet" href="/css/components.css?v=11" />
-  <script src="/js/api.js?v=11"></script>
+  <link rel="stylesheet" href="/css/toast.css?v=11" />
+  <script src="/js/api.js?v=14"></script>
   <script src="/js/auth.js?v=11"></script>
+  <script src="/js/toast.js?v=11"></script>
+  <script src="/js/status_chips.js?v=11"></script>
   <script src="/js/dashboard.js?v=11"></script>
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
 
@@ -182,6 +185,20 @@
       </header>
 
       <main class="main-content" x-data="dashboardApp()" x-init="init()">
+
+        <!-- ── Mock-mode warning banner ─── -->
+        <template x-if="isMockMode()">
+          <div style="margin-bottom:20px;display:flex;align-items:flex-start;gap:12px;padding:14px 18px;background:rgba(237,139,0,0.08);border:1px solid rgba(237,139,0,0.3);border-radius:10px;">
+            <span style="color:var(--risk-eleve);font-size:18px;line-height:1;flex-shrink:0;">⚠</span>
+            <div style="flex:1;font-size:13px;line-height:1.55;color:rgba(255,255,255,0.85);">
+              <strong style="color:var(--risk-eleve);">Mode démo actif</strong> —
+              Aucune IA réelle n'est utilisée. Les scores, explications et recommandations sont générés localement à des fins de démonstration uniquement.
+              Configurez un fournisseur LLM réel dans
+              <a href="/settings.html" style="color:var(--color-accent);text-decoration:underline;">Configuration IA</a>
+              pour obtenir des analyses authentiques.
+            </div>
+          </div>
+        </template>
 
         <!-- ── Top action row ─── -->
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;">

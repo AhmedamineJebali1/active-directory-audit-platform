@@ -169,6 +169,11 @@
       </tr>
     </thead>
     <tbody>
+      {% if not paths %}
+      <tr><td colspan="7" style="text-align:center;padding:18mm;color:#666;font-style:italic;">
+        Aucun chemin d'attaque identifié sur le périmètre ingéré.
+      </td></tr>
+      {% endif %}
       {% for path in paths %}
       {% set rl = path.risk_level or 'moyen' %}
       <tr>

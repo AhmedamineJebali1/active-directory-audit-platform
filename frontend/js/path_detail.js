@@ -8,10 +8,18 @@ function pathDetailApp() {
     analysis: null,
     engagement: null,
 
+    // Sibling navigation
+    siblingPaths: [],   // ordered by global_score desc, full list
+    siblingIdx: -1,     // index of current path in sibling list
+    remediation: null,  // markdown content (string) when loaded
+    remediationLoading: false,
+    remediationError: null,
+
     async init() {
       this.user = await auth.requireAuth();
       if (!this.user) return;
       auth.renderNav();
+      if (window.statusChips) statusChips.attach({ wsBound: false });
       const params = new URLSearchParams(location.search);
       const analysisId = params.get('analysis_id');
       const pathId = params.get('id');
@@ -23,12 +31,139 @@ function pathDetailApp() {
         this.path = await api.getPath(analysisId, pathId);
         this.analysis = await api.getAnalysis(analysisId);
         this.engagement = await api.getEngagement(this.analysis.engagement_id);
-        this.$nextTick(() => this.renderScoreChart());
+        // Load sibling paths in parallel — used for prev/next nav
+        this._loadSiblings(analysisId, pathId);
+        this.$nextTick(() => {
+          this.renderScoreChart();
+          this.renderHopChainSvg();
+        });
       } catch (e) {
         this.error = e.message;
       } finally {
         this.loading = false;
       }
+    },
+
+    async _loadSiblings(analysisId, pathId) {
+      try {
+        const data = await api.listPaths(analysisId, { limit: 100 });
+        const items = (data.items || []).slice().sort((a, b) => {
+          const sa = a.global_score == null ? -1 : a.global_score;
+          const sb = b.global_score == null ? -1 : b.global_score;
+          return sb - sa;
+        });
+        this.siblingPaths = items;
+        this.siblingIdx = items.findIndex(p => p.id === pathId);
+      } catch (_) { /* siblings are optional */ }
+    },
+
+    hasPrev() { return this.siblingIdx > 0; },
+    hasNext() { return this.siblingIdx >= 0 && this.siblingIdx < this.siblingPaths.length - 1; },
+
+    goPrev() {
+      if (!this.hasPrev()) return;
+      const p = this.siblingPaths[this.siblingIdx - 1];
+      location.href = `/path_detail.html?analysis_id=${this.analysis.id}&id=${p.id}`;
+    },
+    goNext() {
+      if (!this.hasNext()) return;
+      const p = this.siblingPaths[this.siblingIdx + 1];
+      location.href = `/path_detail.html?analysis_id=${this.analysis.id}&id=${p.id}`;
+    },
+
+    async loadRemediation() {
+      if (this.remediation || this.remediationLoading) return;
+      this.remediationLoading = true;
+      this.remediationError = null;
+      try {
+        const url = `/api/v1/analyses/${this.analysis.id}/paths/${this.path.id}/remediation-script`;
+        const res = await fetch(url, {
+          headers: { 'Authorization': 'Bearer ' + api.getAccessToken() },
+        });
+        if (!res.ok) throw new Error('Erreur ' + res.status);
+        this.remediation = await res.text();
+      } catch (e) {
+        this.remediationError = e.message;
+        if (window.toast) toast.error('Chargement remédiation : ' + e.message);
+      } finally {
+        this.remediationLoading = false;
+      }
+    },
+
+    /**
+     * Render an SVG mini-graph of the path hops (linear chain with edge labels).
+     * Lightweight, no Cytoscape dependency — fits cleanly inline.
+     */
+    renderHopChainSvg() {
+      const host = document.getElementById('hop-chain-svg');
+      if (!host || !this.path) return;
+      const hops = this.path.hops || [];
+      if (!hops.length) { host.innerHTML = ''; return; }
+
+      const colors = {
+        User: '#4A9EFF', Computer: '#A78BFA', Group: '#FBBF24',
+        Domain: '#F472B6', GPO: '#34D399', OU: '#94A3B8', Container: '#64748B',
+      };
+      const nodeRadius = 14;
+      const yMid = 60;
+      const stepX = 230;
+      const padX = 24;
+      const labelLen = 24;
+
+      // Build node list: [src0, dst0, dst1, ..., dstN-1] (since dst[i]==src[i+1])
+      const nodes = [{ id: hops[0].source, label: hops[0].source_label || hops[0].source, type: hops[0].source_type }];
+      for (const h of hops) nodes.push({ id: h.target, label: h.target_label || h.target, type: h.target_type });
+
+      const totalW = padX * 2 + (nodes.length - 1) * stepX;
+      const h = 130;
+
+      const truncate = (s) => (s || '').length > labelLen ? s.slice(0, labelLen - 1) + '…' : (s || '');
+
+      let svg = `<svg viewBox="0 0 ${totalW} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" class="hop-svg">`;
+      // Edges first (so circles overlap)
+      for (let i = 0; i < hops.length; i++) {
+        const x1 = padX + i * stepX;
+        const x2 = padX + (i + 1) * stepX;
+        const midX = (x1 + x2) / 2;
+        const edgeType = hops[i].edge_type || '';
+        const isHighRisk = ['DCSync','GenericAll','WriteDacl','WriteOwner','Owns','ForceChangePassword',
+                            'AllowedToDelegate','AllowedToAct','AddMember','AddSelf','AddKeyCredentialLink',
+                            'WriteAccountRestrictions'].includes(edgeType);
+        const stroke = isHighRisk ? '#EF4444' : 'rgba(148,163,184,0.5)';
+        svg += `
+          <line x1="${x1 + nodeRadius}" y1="${yMid}" x2="${x2 - nodeRadius}" y2="${yMid}"
+                stroke="${stroke}" stroke-width="2" marker-end="url(#arrow-${isHighRisk ? 'red' : 'gray'})"/>
+          <rect x="${midX - 50}" y="${yMid - 32}" width="100" height="20"
+                rx="10" fill="rgba(10,14,26,0.95)" stroke="${stroke}" stroke-width="1"/>
+          <text x="${midX}" y="${yMid - 18}" text-anchor="middle"
+                font-family="JetBrains Mono, monospace" font-size="10" font-weight="600"
+                fill="${isHighRisk ? '#FCA5A5' : '#CBD5E1'}">${edgeType}</text>
+        `;
+      }
+      // Markers
+      svg += `<defs>
+        <marker id="arrow-gray" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="rgba(148,163,184,0.7)"/>
+        </marker>
+        <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#EF4444"/>
+        </marker>
+      </defs>`;
+      // Nodes
+      nodes.forEach((n, i) => {
+        const x = padX + i * stepX;
+        const isLast = i === nodes.length - 1;
+        const fill = isLast ? '#EF4444' : (colors[n.type] || '#94A3B8');
+        const stroke = isLast ? '#FCA5A5' : 'rgba(255,255,255,0.15)';
+        svg += `
+          <circle cx="${x}" cy="${yMid}" r="${nodeRadius}" fill="${fill}" stroke="${stroke}" stroke-width="${isLast ? 2.5 : 1}"/>
+          <text x="${x}" y="${yMid + 4}" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" font-weight="700" fill="#0A0E1A">${(n.type || '?').slice(0,1)}</text>
+          <text x="${x}" y="${yMid + 32}" text-anchor="middle" font-family="Inter,sans-serif" font-size="11" font-weight="600" fill="#F9FAFB">${truncate(n.label)}</text>
+          <text x="${x}" y="${yMid + 46}" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#9CA3AF">${(n.type || '').toUpperCase()}</text>
+        `;
+      });
+      svg += '</svg>';
+      host.innerHTML = svg;
     },
 
     renderScoreChart() {
@@ -104,6 +239,18 @@ function pathDetailApp() {
         location.href = `/engagement.html?id=${this.engagement.id}`;
       } else {
         history.back();
+      }
+    },
+
+    async downloadRemediationFromHere() {
+      try {
+        const code = (this.engagement && this.engagement.code) || 'mission';
+        const filename = `mitigation-${code}-${this.path.id.slice(0, 8)}.md`
+          .replace(/[^A-Za-z0-9._-]+/g, '_');
+        await api.downloadRemediationScript(this.analysis.id, this.path.id, filename);
+        if (window.toast) toast.success('Plan de remédiation téléchargé');
+      } catch (e) {
+        if (window.toast) toast.error('Téléchargement échoué : ' + e.message);
       }
     },
 

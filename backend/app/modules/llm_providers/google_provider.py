@@ -34,10 +34,27 @@ class GoogleProvider(LLMProvider):
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        response = await self._client.chat.completions.create(
-            model=self._model,
-            messages=messages,
-            max_tokens=self._max_tokens,
-            temperature=self._temperature,
-        )
+        # Gemini's OpenAI-compat layer accepts response_format=json_object on
+        # most flash/pro models. Some preview endpoints reject it — we retry
+        # without on the specific error.
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                max_tokens=self._max_tokens,
+                temperature=self._temperature,
+                response_format={"type": "json_object"},
+            )
+        except Exception as exc:
+            err = str(exc)
+            if "response_format" in err or "json_object" in err:
+                logger.debug("gemini_no_json_mode_fallback", extra={"err": err[:80]})
+                response = await self._client.chat.completions.create(
+                    model=self._model,
+                    messages=messages,
+                    max_tokens=self._max_tokens,
+                    temperature=self._temperature,
+                )
+            else:
+                raise
         return response.choices[0].message.content or ""

@@ -98,12 +98,26 @@
 
     let res = await fetch(url, { method, headers, body });
 
-    if (res.status === 401 && !options._retried) {
+    // Endpoints whose 401 means "credentials/lockout", NOT "your session
+    // expired". For these we must NOT try a refresh — there's nothing to
+    // refresh — and we must SHOW the real server error (e.g. "Email ou mot
+    // de passe incorrect", "Trop de tentatives échouées…") instead of
+    // hiding it behind "Session expirée".
+    const _isCredsEndpoint = (
+      url.includes('/api/v1/auth/login') ||
+      url.includes('/api/v1/auth/refresh') ||
+      url.includes('/api/v1/auth/forgot-password') ||
+      url.includes('/api/v1/auth/reset-password') ||
+      url.includes('/api/v1/auth/accept-invite')
+    );
+
+    if (res.status === 401 && !options._retried && !_isCredsEndpoint) {
       const ok = await tryRefresh();
       if (ok) {
         return request(method, url, Object.assign({}, options, { _retried: true }));
       }
-      // Redirect to login
+      // Drop any stale tokens so we don't loop on the login page
+      clearTokens();
       if (location.pathname !== '/' && location.pathname !== '/index.html') {
         location.href = '/index.html';
       }

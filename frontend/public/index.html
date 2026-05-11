@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/css/tokens.css?v=11" />
   <link rel="stylesheet" href="/css/redesign.css?v=11" />
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
-  <script src="/js/api.js?v=11"></script>
+  <script src="/js/api.js?v=14"></script>
   <style>
     /* Page-specific layout — no extra CSS file needed */
     .login-page {
@@ -251,7 +251,11 @@
           </button>
         </form>
 
-        <p class="login-footer">Accès réservé aux auditeurs autorisés</p>
+        <p class="login-footer">
+          Accès réservé aux auditeurs autorisés
+          <br>
+          <a href="/forgot-password.html" style="color:var(--color-text-muted);text-decoration:underline;font-size:11px;">Mot de passe oublié ?</a>
+        </p>
       </main>
     </div>
   </div>

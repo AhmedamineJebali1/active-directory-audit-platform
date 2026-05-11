@@ -116,23 +116,70 @@ async def _get_provider() -> LLMProvider:
         raise LLMProviderError(f"Unknown provider: {provider_name}", provider=provider_name)
 
 
+# Cap how many hop lines we put in the prompt. A real attack path is rarely
+# longer than 10 hops; longer paths are usually structural noise. Truncating
+# guarantees the prompt fits in the smallest provider's context window
+# (Mistral-small ≈ 32K tokens, Gemini-flash ≈ 1M but prompt eats output budget).
+_MAX_PROMPT_HOPS = 10
+# Limit MITRE techniques in the prompt the same way (a path through 30 unique
+# techniques is rare and unhelpful for the model).
+_MAX_PROMPT_TECHNIQUES = 12
+# Hard label-length cap so a hostile/very-long display name can't blow up
+# the prompt by itself.
+_MAX_LABEL_LEN = 120
+
+
+def _trunc(s: str, n: int = _MAX_LABEL_LEN) -> str:
+    s = str(s or "")
+    return s if len(s) <= n else s[: n - 1] + "…"
+
+
 def _build_path_prompt(path: AttackPathData) -> str:
     template = _PROMPT_PATH.read_text(encoding="utf-8")
 
+    techs = path.mitre_techniques or []
+    if len(techs) > _MAX_PROMPT_TECHNIQUES:
+        techs = techs[:_MAX_PROMPT_TECHNIQUES] + [
+            {"id": "…", "name": f"+{len(path.mitre_techniques) - _MAX_PROMPT_TECHNIQUES} techniques additionnelles", "tactic": ""}
+        ]
     mitre_lines = "\n".join(
-        f"- {t['id']}: {t['name']} ({t['tactic']})" for t in path.mitre_techniques
+        f"- {t['id']}: {t['name']} ({t.get('tactic','')})" for t in techs
     ) or "Aucune technique MITRE détectée"
 
-    hop_lines = "\n".join(
-        f"  {i + 1}. {h['source_label']} ({h['source_type']}) "
-        f"--[{h['edge_type']}]--> {h['target_label']} ({h['target_type']})"
-        for i, h in enumerate(path.hops)
-    )
+    hops = path.hops or []
+    truncated = len(hops) > _MAX_PROMPT_HOPS
+    if truncated:
+        # Keep the first 5 hops AND the last 4 hops so source + target context
+        # are both preserved; insert an ellipsis row between them.
+        head = hops[:5]
+        tail = hops[-4:]
+        hop_lines_iter = []
+        for i, h in enumerate(head):
+            hop_lines_iter.append(
+                f"  {i + 1}. {_trunc(h['source_label'])} ({h.get('source_type','?')}) "
+                f"--[{h.get('edge_type','?')}]--> {_trunc(h['target_label'])} ({h.get('target_type','?')})"
+            )
+        hop_lines_iter.append(
+            f"  … ({len(hops) - 9} sauts intermédiaires omis pour limiter la longueur du prompt) …"
+        )
+        offset = len(hops) - len(tail)
+        for j, h in enumerate(tail):
+            hop_lines_iter.append(
+                f"  {offset + j + 1}. {_trunc(h['source_label'])} ({h.get('source_type','?')}) "
+                f"--[{h.get('edge_type','?')}]--> {_trunc(h['target_label'])} ({h.get('target_type','?')})"
+            )
+        hop_lines = "\n".join(hop_lines_iter)
+    else:
+        hop_lines = "\n".join(
+            f"  {i + 1}. {_trunc(h['source_label'])} ({h.get('source_type','?')}) "
+            f"--[{h.get('edge_type','?')}]--> {_trunc(h['target_label'])} ({h.get('target_type','?')})"
+            for i, h in enumerate(hops)
+        )
 
     return template.format(
-        source_node=path.source_node,
+        source_node=_trunc(path.source_node),
         source_type=path.source_type,
-        target_node=path.target_node,
+        target_node=_trunc(path.target_node),
         target_type=path.target_type,
         path_length=path.length,
         path_details=hop_lines,
@@ -236,7 +283,7 @@ _HIGH_RISK_EDGES = frozenset({
     # Credential dumping / replication
     "GetChangesAll", "GetChanges", "GetChangesInFilteredSet", "DCSync",
     # Full object control
-    "GenericAll", "WriteOwner", "WriteDACL", "Owns",
+    "GenericAll", "WriteOwner", "WriteDacl", "Owns",
     # Account manipulation
     "ForceChangePassword", "GenericWrite", "AddMember", "AddSelf",
     "AddKeyCredentialLink", "WriteAccountRestrictions",
@@ -260,7 +307,7 @@ _EDGE_PRIORITY = {e: i for i, e in enumerate([
     # Tier 0 — instant domain compromise
     "GetChangesAll", "GetChanges", "DCSync", "GoldenCert", "CoerceToTGT",
     # Tier 1 — full object control
-    "GenericAll", "WriteOwner", "WriteDACL", "Owns",
+    "GenericAll", "WriteOwner", "WriteDacl", "Owns",
     # Tier 2 — targeted control / shadow creds
     "ForceChangePassword", "GenericWrite", "AddKeyCredentialLink",
     "AllowedToDelegate", "AllowedToAct",
@@ -303,7 +350,7 @@ def _heuristic_score(path: "AttackPathData") -> dict:
 
     if edge_types & _INSTANT_CRITICAL:
         exploit, stealth, risk = 9.0, 4.0, "critique"
-    elif high_risk_count >= 2 or "WriteOwner" in edge_types or "WriteDACL" in edge_types:
+    elif high_risk_count >= 2 or "WriteOwner" in edge_types or "WriteDacl" in edge_types:
         exploit, stealth, risk = 8.0, 5.0, "eleve"
     elif high_risk_count == 1:
         exploit, stealth, risk = 7.0, 5.0, "eleve"

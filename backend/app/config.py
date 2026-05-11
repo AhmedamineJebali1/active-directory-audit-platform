@@ -91,10 +91,32 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check_production_secrets(self) -> "Settings":
-        if self.app_env == "production" and self.app_secret_key == _DEFAULT_SECRET:
-            raise ValueError(
-                "APP_SECRET_KEY must be changed from the default value in production"
-            )
+        if self.app_env == "production":
+            # Refuse to boot with insecure defaults — these would silently
+            # ship a system with predictable JWT signing and a known admin
+            # password to the public internet.
+            problems = []
+            if self.app_secret_key == _DEFAULT_SECRET or len(self.app_secret_key) < 32:
+                problems.append(
+                    "APP_SECRET_KEY must be set to a random value of >= 32 chars"
+                )
+            if self.seed_admin_password == "ChangeMeNow!2026":
+                problems.append(
+                    "SEED_ADMIN_PASSWORD must NOT be the default in production"
+                )
+            if self.postgres_password in ("changeme", "postgres", ""):
+                problems.append(
+                    "POSTGRES_PASSWORD must NOT be a default in production"
+                )
+            if self.neo4j_password in ("changeme", "neo4j", ""):
+                problems.append(
+                    "NEO4J_PASSWORD must NOT be a default in production"
+                )
+            if problems:
+                raise ValueError(
+                    "Configuration de production invalide :\n  - "
+                    + "\n  - ".join(problems)
+                )
         return self
 
 

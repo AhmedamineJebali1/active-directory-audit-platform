@@ -54,30 +54,56 @@ async def generate_pdf(analysis, engagement, paths) -> bytes:
         critical_paths = [p for p in paths if p.risk_level == "critique"]
         high_paths = [p for p in paths if p.risk_level == "eleve"]
 
-        # Executive summary from agent
-        from app.modules.agent import generate_executive_summary
+        # Executive summary — skip the LLM call entirely if there are no paths.
+        # (a) Saves a wasted prompt; (b) avoids template KeyErrors on empty data.
+        if paths:
+            from app.modules.agent import generate_executive_summary
 
-        paths_dicts = [
-            {
-                "source_node": p.source_node,
-                "target_node": p.target_node,
-                "risk_level": p.risk_level,
-                "global_score": p.global_score,
-                "explanation_fr": p.explanation_fr,
-                "mitre_techniques": [
-                    {"id": mt.technique_id, "name": mt.technique_name, "tactic": mt.tactic}
-                    for mt in p.mitre_techniques
+            paths_dicts = [
+                {
+                    "source_node": p.source_node,
+                    "target_node": p.target_node,
+                    "risk_level": p.risk_level,
+                    "global_score": p.global_score,
+                    "explanation_fr": p.explanation_fr,
+                    "mitre_techniques": [
+                        {"id": mt.technique_id, "name": mt.technique_name, "tactic": mt.tactic}
+                        for mt in p.mitre_techniques
+                    ],
+                }
+                for p in paths
+            ]
+            exec_summary = await generate_executive_summary(
+                paths=paths_dicts,
+                client_name=engagement.client_name if engagement else "Client",
+                engagement_code=engagement.code if engagement else "N/A",
+                analysis_date=datetime.now(UTC).strftime("%d/%m/%Y"),
+            )
+        else:
+            exec_summary = {
+                "verdict_global": "Faible",
+                "resume_executif": (
+                    "Aucun chemin d'attaque exploitable n'a été détecté entre les "
+                    "comptes non-privilégiés et les groupes à fort impact (Domain "
+                    "Admins, Enterprise Admins, Administrators). Le périmètre "
+                    "ingéré ne révèle pas d'escalade triviale."
+                ),
+                "principaux_risques": [
+                    "Aucun risque majeur détecté sur le périmètre ingéré.",
                 ],
+                "recommandations_prioritaires": [
+                    {
+                        "priorite": 1,
+                        "action": "Étendre la collecte aux contrôleurs de domaine et serveurs critiques pour confirmer le résultat.",
+                        "urgence": "Standard",
+                    },
+                ],
+                "feuille_de_route": (
+                    "Maintenir les bonnes pratiques actuelles (Tier 0 isolé, "
+                    "comptes admins distincts) et ré-auditer après tout changement "
+                    "majeur d'infrastructure."
+                ),
             }
-            for p in paths
-        ]
-
-        exec_summary = await generate_executive_summary(
-            paths=paths_dicts,
-            client_name=engagement.client_name if engagement else "Client",
-            engagement_code=engagement.code if engagement else "N/A",
-            analysis_date=datetime.now(UTC).strftime("%d/%m/%Y"),
-        )
 
         # Compliance mapping
         compliance_path = Path(__file__).parent.parent.parent / "data" / "compliance_mapping.json"

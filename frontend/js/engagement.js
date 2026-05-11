@@ -4,6 +4,7 @@ function engagementApp() {
     user: null,
     engagement: null,
     analyses: [],
+    llmInfo: null,
     activeAnalysis: null,
     progress: 0,
     progressStage: '',
@@ -15,7 +16,7 @@ function engagementApp() {
     ws: null,
     _pollInterval: null,
 
-    // Source mode: 'json' | 'ldap'
+    // Source mode: 'json' | 'zip' | 'ldap'
     sourceMode: 'json',
     ldapCollecting: false,
     ldapForm: {
@@ -36,6 +37,11 @@ function engagementApp() {
     stats: null,
     filterRisk: '',
 
+    // MITRE matrix tab
+    mitreLoading: false,
+    mitreCoverage: null,    // {techniques, count_by_tactic, top_techniques}
+    mitreColumns: [],       // pre-built [{tactic, techniques: [...]}] — populated by loadMitre()
+
     // Remediation
     remediationBannerDismissed: false,
     bundleDownloading: false,
@@ -55,11 +61,13 @@ function engagementApp() {
       this.user = await auth.requireAuth();
       if (!this.user) return;
       auth.renderNav('dashboard');
+      if (window.statusChips) statusChips.attach({ wsBound: true });
       const id = new URLSearchParams(location.search).get('id');
       if (!id) { location.href = '/dashboard.html'; return; }
       try {
         this.engagement = await api.getEngagement(id);
         await this.fetchAnalyses();
+        api.getLLMConfig().then(c => { this.llmInfo = c; }).catch(() => {});
       } catch (e) {
         this.error = e.message;
       } finally {
@@ -68,18 +76,131 @@ function engagementApp() {
       this.$nextTick(() => this.bindUpload());
     },
 
+    isMockMode() {
+      return this.llmInfo && this.llmInfo.provider === 'mock';
+    },
+
     switchTab(tab) {
       this.activeTab = tab;
       if (tab === 'graph' && this.activeAnalysis && this.activeAnalysis.status === 'completed') {
         this.$nextTick(() => this.loadGraph(this.activeAnalysis.id));
       }
+      if (tab === 'mitre' && this.activeAnalysis && this.activeAnalysis.status === 'completed') {
+        this.$nextTick(() => this.loadMitre(this.activeAnalysis.id));
+      }
+    },
+
+    async loadMitre(analysisId) {
+      if (this.mitreCoverage) return;
+      this.mitreLoading = true;
+      try {
+        const cov = await api.getMitre(analysisId);
+        // Augment techniques with per-technique counts (the API returns
+        // top 10 with counts, plus the full list without counts).
+        const countMap = {};
+        (cov.top_techniques || []).forEach(t => { countMap[t.technique_id] = t.count; });
+        // Fall back: count by walking loaded paths if available
+        if (Object.keys(countMap).length === 0 && this.paths.length) {
+          this.paths.forEach(p => (p.mitre_techniques || []).forEach(mt => {
+            countMap[mt.technique_id] = (countMap[mt.technique_id] || 0) + 1;
+          }));
+        }
+        cov.techniques.forEach(t => { t.count = countMap[t.technique_id] || 0; });
+        this.mitreCoverage = cov;
+
+        // Pre-compute the matrix structure here, in one pass.
+        // This avoids relying on nested `<template x-for>` + `x-show` in Alpine,
+        // which was the root cause of the matrix appearing empty even with
+        // valid data: Alpine 3 evaluates nested x-for expressions during the
+        // outer iteration in a way that sometimes mis-binds the loop scope,
+        // so the inner filter sees `tactic.name` as undefined.
+        const tacticOrder = this.mitreTactics();
+        const cols = [];
+        for (const tac of tacticOrder) {
+          const lc = (tac.name || '').toLowerCase();
+          const techs = (cov.techniques || [])
+            .filter(t => (t.tactic || '').toLowerCase() === lc)
+            .sort((a, b) => (b.count || 0) - (a.count || 0));
+          if (techs.length > 0) cols.push({ ...tac, techniques: techs });
+        }
+        // Append a catch-all for any tactic the backend uses but we didn't list,
+        // so we never silently swallow data.
+        const known = new Set(tacticOrder.map(t => t.name.toLowerCase()));
+        const orphans = {};
+        (cov.techniques || []).forEach(t => {
+          const k = (t.tactic || 'Unknown');
+          if (!known.has(k.toLowerCase())) {
+            (orphans[k] = orphans[k] || []).push(t);
+          }
+        });
+        Object.entries(orphans).forEach(([name, techs]) => {
+          cols.push({ id: 'orphan-' + name, name, techniques: techs });
+        });
+        this.mitreColumns = cols;
+
+        console.info('[MITRE] loaded', {
+          analysisId, techniques: cov.techniques.length,
+          columns: cols.length, tactics: cols.map(c => c.name),
+        });
+      } catch (e) {
+        console.error('[MITRE] load failed', e);
+        if (window.toast) toast.error('MITRE : ' + e.message);
+      } finally {
+        this.mitreLoading = false;
+      }
+    },
+
+    /** Ordered list of MITRE tactics (TA0001…TA0011). Used as columns of the matrix. */
+    mitreTactics() {
+      return [
+        { id: 'TA0001', name: 'Initial Access' },
+        { id: 'TA0002', name: 'Execution' },
+        { id: 'TA0003', name: 'Persistence' },
+        { id: 'TA0004', name: 'Privilege Escalation' },
+        { id: 'TA0005', name: 'Defense Evasion' },
+        { id: 'TA0006', name: 'Credential Access' },
+        { id: 'TA0007', name: 'Discovery' },
+        { id: 'TA0008', name: 'Lateral Movement' },
+        { id: 'TA0009', name: 'Collection' },
+        { id: 'TA0011', name: 'Command and Control' },
+        { id: 'TA0010', name: 'Exfiltration' },
+        { id: 'TA0040', name: 'Impact' },
+      ];
+    },
+
+    /** Techniques in a given tactic, deduped, sorted by count desc. */
+    mitreTechByTactic(tacticName) {
+      if (!this.mitreCoverage) return [];
+      // Some MITRE techniques span multiple tactics; the mapping file picks ONE
+      // per entry, so we just match on `tactic` substring (case-insensitive).
+      const norm = (tacticName || '').toLowerCase();
+      const out = (this.mitreCoverage.techniques || []).filter(
+        t => (t.tactic || '').toLowerCase() === norm,
+      );
+      return out.slice().sort((a, b) => (b.count || 0) - (a.count || 0));
+    },
+
+    /** Map a count to a heatmap intensity bucket (1=lightest, 5=hottest). */
+    mitreCellHeat(count) {
+      if (!count) return '0';
+      if (count >= 10) return '5';
+      if (count >= 5) return '4';
+      if (count >= 3) return '3';
+      if (count >= 2) return '2';
+      return '1';
     },
 
     bindUpload() {
       const zone = document.getElementById('upload-zone');
       const input = document.getElementById('upload-input');
-      if (!zone || !input) return;
-      uploadHelper.setupUploadZone(zone, input, (file) => this.startUpload(file));
+      if (zone && input) {
+        uploadHelper.setupUploadZone(zone, input, (file) => this.startUpload(file));
+      }
+      const zoneZip = document.getElementById('upload-zone-zip');
+      const inputZip = document.getElementById('upload-input-zip');
+      if (zoneZip && inputZip) {
+        uploadHelper.setupUploadZone(zoneZip, inputZip, (file) => this.startUpload(file));
+      }
     },
 
     async fetchAnalyses() {
@@ -112,9 +233,11 @@ function engagementApp() {
         this.uploadingPercent = null;
         this.analyses.unshift(analysis);
         this.attachToAnalysis(analysis);
+        if (window.toast) toast.info("Analyse démarrée — pipeline en cours…");
       } catch (e) {
         this.uploadingPercent = null;
         this.error = e.message;
+        if (window.toast) toast.error("Upload échoué : " + e.message);
       }
     },
 
@@ -129,6 +252,11 @@ function engagementApp() {
       this.graphData = null;
       this.graphStats = null;
       this.graphPaths = [];
+      // Reset MITRE state so we re-fetch on next tab visit instead of showing
+      // a stale matrix from a previously-viewed analysis.
+      this.mitreCoverage = null;
+      this.mitreColumns = [];
+      this.mitreLoading = false;
       this.selectedNode = null;
       this.highlightedPath = null;
       if (this.cyInstance) { this.cyInstance.destroy(); this.cyInstance = null; }
@@ -137,7 +265,11 @@ function engagementApp() {
       if (this._pollInterval) { clearInterval(this._pollInterval); this._pollInterval = null; }
 
       if (['completed', 'failed'].includes(analysis.status)) {
-        if (analysis.status === 'completed') this.loadPaths(analysis.id);
+        if (analysis.status === 'completed') {
+          this.loadPaths(analysis.id);
+          // Prefetch MITRE so the matrix tab is instant when the user clicks it
+          this.loadMitre(analysis.id);
+        }
         return;
       }
 
@@ -145,6 +277,9 @@ function engagementApp() {
 
       // WebSocket for real-time events
       this.ws = wsClient.connectAnalysisWs(id, {
+        onOpen: () => { if (window.statusChips) statusChips.setWs('connected'); },
+        onClose: () => { if (window.statusChips) statusChips.setWs('disconnected'); },
+        onError: () => { if (window.statusChips) statusChips.setWs('polling'); },
         onEvent: (ev) => {
           if (ev.progress > this.progress) this.progress = ev.progress;
           this.progressStage = ev.stage || this.progressStage;
@@ -154,11 +289,13 @@ function engagementApp() {
             this.progressFailed = false;
             this.refreshAnalysisStatus(id);
             this.loadPaths(id);
+            if (window.toast) toast.success("Analyse terminée");
           }
           if (ev.stage === 'failed') {
             this._stopPoll();
             this.progressFailed = true;
             this.refreshAnalysisStatus(id);
+            if (window.toast) toast.error("Analyse échouée — voir le détail");
           }
         },
       });
@@ -235,7 +372,7 @@ function engagementApp() {
         const filename = `remediation-${code}-${date}.zip`.replace(/[^A-Za-z0-9._-]+/g, '_');
         await api.downloadRemediationBundle(this.activeAnalysis.id, filename);
       } catch (e) {
-        alert('Échec du téléchargement : ' + (e.message || e));
+        (window.toast ? toast.error : alert)('Échec du téléchargement : ' + (e.message || e));
       } finally {
         this.bundleDownloading = false;
       }
@@ -249,7 +386,7 @@ function engagementApp() {
         const filename = `rapport-${code}-${this.activeAnalysis.id.slice(0, 8)}.pdf`.replace(/[^A-Za-z0-9._-]+/g, '_');
         await api.downloadReport(this.activeAnalysis.id, filename);
       } catch (e) {
-        alert('Échec du téléchargement : ' + (e.message || e));
+        (window.toast ? toast.error : alert)('Échec du téléchargement : ' + (e.message || e));
       } finally {
         this.pdfDownloading = false;
       }
@@ -262,7 +399,7 @@ function engagementApp() {
         const filename = `mitigation-${code}-${pathId.slice(0, 8)}.md`.replace(/[^A-Za-z0-9._-]+/g, '_');
         await api.downloadRemediationScript(this.activeAnalysis.id, pathId, filename);
       } catch (e) {
-        alert('Échec du téléchargement : ' + (e.message || e));
+        (window.toast ? toast.error : alert)('Échec du téléchargement : ' + (e.message || e));
       }
     },
 
@@ -374,13 +511,31 @@ function engagementApp() {
             style: { 'border-width': 3, 'border-color': '#86BC25', 'border-opacity': 1 },
           },
         ],
-        layout: { name: this.graphLayout, animate: true, animationDuration: 600, padding: 40 },
+        // Use a "preset"-equivalent (skip auto-layout in the constructor) so
+        // we can fully control the layout phase below and fit the viewport
+        // AFTER the layout settles. Doing the layout in the constructor +
+        // animating during it produced a jumbled first paint on dense graphs;
+        // the user had to switch layout to force a re-run.
+        layout: { name: 'preset' },
         userZoomingEnabled: true,
         userPanningEnabled: true,
         boxSelectionEnabled: false,
         minZoom: 0.1,
         maxZoom: 4,
       });
+
+      // Run the requested layout explicitly and fit the viewport when it
+      // finishes. This avoids the "first render is messy until user changes
+      // layout" problem — equivalent to what the user used to trigger by
+      // switching layouts manually.
+      const layoutOpts = this._buildLayoutOptions(this.graphLayout);
+      const layout = this.cyInstance.layout(layoutOpts);
+      layout.one('layoutstop', () => {
+        // Small fudge: fit with padding, otherwise dense graphs render
+        // crammed against one edge of the canvas.
+        try { this.cyInstance.fit(undefined, 60); } catch (_) {}
+      });
+      layout.run();
 
       this.cyInstance.on('tap', 'node', (evt) => {
         this.cyInstance.elements().removeClass('selected');
@@ -446,7 +601,70 @@ function engagementApp() {
 
     applyGraphLayout() {
       if (!this.cyInstance) return;
-      this.cyInstance.layout({ name: this.graphLayout, animate: true, animationDuration: 500, padding: 40 }).run();
+      const opts = this._buildLayoutOptions(this.graphLayout);
+      const lay = this.cyInstance.layout(opts);
+      lay.one('layoutstop', () => {
+        try { this.cyInstance.fit(undefined, 60); } catch (_) {}
+      });
+      lay.run();
+    },
+
+    /**
+     * Builds Cytoscape layout options that converge cleanly on first run.
+     *
+     * - `breadthfirst` needs an explicit `roots` hint, otherwise it picks
+     *   arbitrary nodes and produces a jumbled tree on first render. We
+     *   point it at the privileged target nodes (the "destinations" of
+     *   attack paths) so the BFS flows from leaves to root.
+     * - `cose` benefits from disabling animation during the first run —
+     *   the layout finishes much faster and looks fine animated by `.fit()`.
+     * - Defaults to a quality-tuned cose if the layout name isn't recognised.
+     */
+    _buildLayoutOptions(name) {
+      const base = { animate: true, animationDuration: 500, padding: 40 };
+      if (name === 'breadthfirst') {
+        // Use privileged nodes as roots so the tree has a clear direction.
+        const privIds = (this.graphData?.nodes || [])
+          .filter(n => n.data && n.data.is_privileged)
+          .map(n => n.data.id);
+        return Object.assign({}, base, {
+          name: 'breadthfirst',
+          directed: true,
+          roots: privIds.length ? privIds : undefined,
+          spacingFactor: 1.4,
+          avoidOverlap: true,
+          maximal: false,
+        });
+      }
+      if (name === 'cose') {
+        return Object.assign({}, base, {
+          name: 'cose',
+          nodeRepulsion: 8000,
+          idealEdgeLength: 80,
+          edgeElasticity: 100,
+          gravity: 0.25,
+          nestingFactor: 1.2,
+          numIter: 1000,
+          randomize: true,
+          animate: false,  // run iterations headless, then fit
+        });
+      }
+      if (name === 'circle') {
+        return Object.assign({}, base, { name: 'circle', spacingFactor: 1.3 });
+      }
+      if (name === 'concentric') {
+        return Object.assign({}, base, {
+          name: 'concentric',
+          concentric: (n) => (n.data('is_privileged') ? 10 : 1),
+          levelWidth: () => 1,
+          spacingFactor: 1.4,
+        });
+      }
+      if (name === 'grid') {
+        return Object.assign({}, base, { name: 'grid', spacingFactor: 1.3 });
+      }
+      // Fallback
+      return Object.assign({}, base, { name: name || 'breadthfirst' });
     },
 
     nodeAttackPaths() {

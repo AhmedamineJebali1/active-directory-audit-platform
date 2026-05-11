@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.engagement_access import require_analysis_access
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.security import get_current_user
 from app.database import get_db
@@ -24,9 +25,8 @@ router = APIRouter(tags=["paths"])
 
 @router.get("/analyses/{analysis_id}/paths", response_model=AttackPathListResponse)
 async def list_paths(
-    analysis_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user=Depends(get_current_user),
+    analysis: Annotated[Analysis, Depends(require_analysis_access("viewer"))],
     risk: str | None = Query(None, description="Filter by risk level (critique/eleve/moyen/faible)"),
     min_score: float | None = Query(None, ge=0, le=10),
     technique: str | None = Query(None, description="Filter by MITRE technique ID (e.g. T1078)"),
@@ -34,9 +34,7 @@ async def list_paths(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    result_check = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
-    if not result_check.scalar_one_or_none():
-        raise NotFoundError("Analyse")
+    analysis_id = analysis.id
 
     query = (
         select(AttackPath)
@@ -79,14 +77,13 @@ async def list_paths(
 
 @router.get("/analyses/{analysis_id}/paths/{path_id}", response_model=AttackPathResponse)
 async def get_path(
-    analysis_id: uuid.UUID,
     path_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user=Depends(get_current_user),
+    analysis: Annotated[Analysis, Depends(require_analysis_access("viewer"))],
 ):
     result = await db.execute(
         select(AttackPath)
-        .where(AttackPath.id == path_id, AttackPath.analysis_id == analysis_id)
+        .where(AttackPath.id == path_id, AttackPath.analysis_id == analysis.id)
         .options(selectinload(AttackPath.mitre_techniques))
     )
     path = result.scalar_one_or_none()
@@ -104,31 +101,25 @@ def _ascii_safe_filename(name: str) -> str:
 
 @router.get("/analyses/{analysis_id}/paths/{path_id}/remediation-script")
 async def download_remediation_script(
-    analysis_id: uuid.UUID,
     path_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user=Depends(get_current_user),
+    analysis: Annotated[Analysis, Depends(require_analysis_access("viewer"))],
 ):
     """Return the PowerShell remediation script for a single attack path."""
     result = await db.execute(
         select(AttackPath)
-        .where(AttackPath.id == path_id, AttackPath.analysis_id == analysis_id)
+        .where(AttackPath.id == path_id, AttackPath.analysis_id == analysis.id)
         .options(selectinload(AttackPath.mitre_techniques))
     )
     path = result.scalar_one_or_none()
     if not path:
         raise NotFoundError("Chemin d'attaque")
 
-    analysis = (
-        await db.execute(select(Analysis).where(Analysis.id == analysis_id))
+    engagement = (
+        await db.execute(
+            select(Engagement).where(Engagement.id == analysis.engagement_id)
+        )
     ).scalar_one_or_none()
-    engagement = None
-    if analysis is not None:
-        engagement = (
-            await db.execute(
-                select(Engagement).where(Engagement.id == analysis.engagement_id)
-            )
-        ).scalar_one_or_none()
 
     guide = build_script_for_path(path, engagement=engagement)
     eng_code = engagement.code if engagement else "mission"
@@ -143,16 +134,11 @@ async def download_remediation_script(
 
 @router.get("/analyses/{analysis_id}/remediation-bundle.zip")
 async def download_remediation_bundle(
-    analysis_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user=Depends(get_current_user),
+    analysis: Annotated[Analysis, Depends(require_analysis_access("viewer"))],
 ):
     """Return a ZIP archive with every remediation script + LISEZ-MOI.txt."""
-    analysis = (
-        await db.execute(select(Analysis).where(Analysis.id == analysis_id))
-    ).scalar_one_or_none()
-    if not analysis:
-        raise NotFoundError("Analyse")
+    analysis_id = analysis.id
     if analysis.status != "completed":
         raise ValidationError("L'analyse n'est pas encore terminée")
 

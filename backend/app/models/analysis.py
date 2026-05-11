@@ -23,7 +23,7 @@ class Analysis(Base):
         UUID(as_uuid=True), ForeignKey("engagements.id"), nullable=False
     )
     source_type: Mapped[str] = mapped_column(
-        Enum("bloodhound_json", "ldap_live", name="source_type"),
+        Enum("bloodhound_json", "bloodhound_zip", "ldap_live", name="source_type"),
         nullable=False,
         default="bloodhound_json",
     )

@@ -3,7 +3,7 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, String
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,6 +25,17 @@ class User(Base):
         default="auditor",
     )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Incremented every time the user logs out or admin force-logs-them-out.
+    # The current value is embedded in every issued JWT; tokens whose `tv`
+    # claim doesn't match the user's current token_version are rejected.
+    # This is how server-side session invalidation works without storing
+    # every issued token in a DB. See app/core/security.py.
+    token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0",
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )

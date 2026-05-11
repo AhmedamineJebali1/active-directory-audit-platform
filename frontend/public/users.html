@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Utilisateurs — AD Audit AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=12" />
+  <link rel="stylesheet" href="/css/redesign.css?v=12" />
+  <link rel="stylesheet" href="/css/base.css?v=12" />
+  <link rel="stylesheet" href="/css/components.css?v=12" />
+  <link rel="stylesheet" href="/css/dashboard.css?v=12" />
+  <link rel="stylesheet" href="/css/toast.css?v=12" />
+  <script src="/js/api.js?v=14"></script>
+  <script src="/js/auth.js?v=12"></script>
+  <script src="/js/toast.js?v=12"></script>
+  <script src="/js/status_chips.js?v=12"></script>
+  <script src="/js/users.js?v=12"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <style>
+    .user-row { transition: background 120ms; }
+    .user-row:hover { background: rgba(255,255,255,0.02); }
+    .user-row.is-disabled { opacity: 0.5; }
+    .role-pill {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: var(--radius-pill);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
+      border: 1px solid var(--color-border-strong);
+    }
+    .role-pill--admin   { color: var(--risk-critique); border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.08); }
+    .role-pill--manager { color: var(--color-accent);  border-color: rgba(134,188,37,0.4); background: rgba(134,188,37,0.08); }
+    .role-pill--auditor { color: #4A9EFF;              border-color: rgba(74,158,255,0.4); background: rgba(74,158,255,0.08); }
+    .status-dot {
+      display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+      margin-right: 6px;
+    }
+    .status-dot--on { background: var(--risk-faible); }
+    .status-dot--off { background: var(--color-text-dim); }
+    .invite-modal {
+      position: fixed; inset: 0; z-index: 1000;
+      background: rgba(10, 14, 26, 0.7);
+      backdrop-filter: blur(8px);
+      display: grid; place-items: center; padding: 20px;
+      animation: fade-in 200ms;
+    }
+    .invite-modal__inner {
+      width: 100%; max-width: 460px;
+      background: var(--color-bg-elevated);
+      border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      padding: 28px;
+    }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+</head>
+<body class="has-mesh-bg">
+  <div class="app-shell" id="app-shell">
+    <div id="nav-slot"></div>
+
+    <div>
+      <header class="topbar">
+        <div>
+          <div class="topbar__breadcrumb"><a href="/dashboard.html" style="color:inherit;text-decoration:none;">Tableau de bord</a> / Utilisateurs</div>
+          <div class="topbar__title">Gestion des utilisateurs</div>
+        </div>
+        <div class="topbar__spacer"></div>
+      </header>
+
+      <main class="main-content" x-data="usersApp()" x-init="init()">
+
+        <template x-if="!isAdmin">
+          <div class="empty-state" style="text-align:center;padding:60px;">
+            <div style="font-size:48px;margin-bottom:16px;">🔒</div>
+            <h2 style="font-size:20px;font-weight:700;margin-bottom:8px;">Accès réservé</h2>
+            <p style="color:var(--color-text-muted);font-size:14px;">
+              Seuls les administrateurs peuvent gérer les comptes utilisateurs.
+            </p>
+          </div>
+        </template>
+
+        <template x-if="isAdmin">
+          <div>
+
+            <!-- ── Action row ─────────────────────────────────── -->
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;">
+              <div style="display:flex;align-items:center;gap:10px;flex:1;">
+                <input class="form-control" type="search" placeholder="Rechercher (email, nom)"
+                       x-model.debounce.350ms="search" @input="reload()"
+                       style="max-width:320px;" />
+                <label style="font-size:13px;color:var(--color-text-muted);display:flex;align-items:center;gap:6px;">
+                  <input type="checkbox" x-model="includeDisabled" @change="reload()" />
+                  Inclure désactivés
+                </label>
+              </div>
+              <button class="btn-2026 btn-2026--primary" @click="openInvite()">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5v11M1.5 7h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                Inviter un utilisateur
+              </button>
+            </div>
+
+            <!-- ── Stats ────────────────────────────────────── -->
+            <div class="stat-grid" style="margin-bottom:24px;">
+              <div class="stat-card">
+                <div class="stat-card__head"><span class="stat-card__label">Total comptes</span></div>
+                <div class="stat-card__value" x-text="users.length"></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card__head"><span class="stat-card__label">Admins</span></div>
+                <div class="stat-card__value" style="color:var(--risk-critique);" x-text="byRole('admin')"></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card__head"><span class="stat-card__label">Managers</span></div>
+                <div class="stat-card__value" style="color:var(--color-accent);" x-text="byRole('manager')"></div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-card__head"><span class="stat-card__label">Auditeurs</span></div>
+                <div class="stat-card__value" style="color:#4A9EFF;" x-text="byRole('auditor')"></div>
+              </div>
+            </div>
+
+            <!-- ── User table ─────────────────────────────────── -->
+            <div class="card">
+              <div class="card-header">
+                <h3 style="font-size:15px;font-weight:600;">Comptes</h3>
+                <span style="font-size:12px;color:var(--color-text-muted);" x-text="total + ' au total'"></span>
+              </div>
+              <div class="card-body" style="padding:0;">
+                <template x-if="loading">
+                  <div style="padding:40px;text-align:center;color:var(--color-text-muted);">
+                    <span class="spinner"></span>
+                  </div>
+                </template>
+                <template x-if="!loading && users.length === 0">
+                  <div style="padding:40px;text-align:center;color:var(--color-text-muted);font-size:13px;">
+                    Aucun utilisateur trouvé.
+                  </div>
+                </template>
+                <table class="data-table" x-show="!loading && users.length > 0">
+                  <thead>
+                    <tr>
+                      <th>Utilisateur</th>
+                      <th>Rôle</th>
+                      <th>État</th>
+                      <th>Créé le</th>
+                      <th>Dernière connexion</th>
+                      <th style="text-align:right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="u in users" :key="u.id">
+                      <tr class="user-row" :class="!u.is_active ? 'is-disabled' : ''">
+                        <td>
+                          <div style="font-weight:600;color:var(--color-text);" x-text="u.full_name"></div>
+                          <div style="font-size:11px;font-family:var(--font-mono);color:var(--color-text-muted);" x-text="u.email"></div>
+                        </td>
+                        <td>
+                          <select class="form-control"
+                                  :value="u.role" @change="changeRole(u, $event.target.value)"
+                                  style="font-size:11px;padding:4px 8px;font-family:var(--font-mono);max-width:140px;"
+                                  :disabled="u.id === me.id">
+                            <option value="admin">admin</option>
+                            <option value="manager">manager</option>
+                            <option value="auditor">auditor</option>
+                          </select>
+                        </td>
+                        <td>
+                          <span class="status-dot" :class="u.is_active ? 'status-dot--on' : 'status-dot--off'"></span>
+                          <span x-text="u.is_active ? 'Actif' : 'Désactivé'" style="font-size:12px;"></span>
+                        </td>
+                        <td style="font-size:11px;color:var(--color-text-muted);font-family:var(--font-mono);" x-text="formatDate(u.created_at)"></td>
+                        <td style="font-size:11px;color:var(--color-text-muted);font-family:var(--font-mono);" x-text="formatDate(u.last_login_at) || 'jamais'"></td>
+                        <td style="text-align:right;white-space:nowrap;">
+                          <button class="btn btn-ghost btn-sm" @click="forceLogout(u)" :disabled="u.id === me.id"
+                                  title="Forcer la déconnexion de toutes ses sessions">
+                            Force logout
+                          </button>
+                          <button x-show="u.is_active" class="btn btn-ghost btn-sm"
+                                  @click="disable(u)" :disabled="u.id === me.id"
+                                  style="color:var(--risk-eleve);">
+                            Désactiver
+                          </button>
+                          <button x-show="!u.is_active" class="btn btn-ghost btn-sm"
+                                  @click="enable(u)" style="color:var(--color-accent);">
+                            Réactiver
+                          </button>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- ── Invite modal ─────────────────────────────────── -->
+        <template x-if="inviteOpen">
+          <div class="invite-modal" @click.self="inviteOpen = false">
+            <div class="invite-modal__inner" x-data x-trap.noscroll="true">
+              <h2 style="font-size:18px;font-weight:700;margin:0 0 6px;">Inviter un utilisateur</h2>
+              <p style="font-size:13px;color:var(--color-text-muted);margin:0 0 20px;">
+                Un email d'invitation sera envoyé. Le compte est créé immédiatement avec un mot de passe temporaire.
+              </p>
+              <form @submit.prevent="submitInvite()" style="display:flex;flex-direction:column;gap:14px;">
+                <div class="field-2026">
+                  <label>Email</label>
+                  <input type="email" required x-model="invite.email" placeholder="auditeur@organisation.com" autocomplete="off" />
+                </div>
+                <div class="field-2026">
+                  <label>Nom complet</label>
+                  <input type="text" required x-model="invite.full_name" placeholder="Prénom Nom" autocomplete="off" />
+                </div>
+                <div class="field-2026">
+                  <label>Rôle</label>
+                  <select x-model="invite.role">
+                    <option value="auditor">auditor — peut être assigné à des missions</option>
+                    <option value="manager">manager — peut créer/gérer des missions</option>
+                    <option value="admin">admin — accès complet et gestion utilisateurs</option>
+                  </select>
+                </div>
+                <div class="field-2026">
+                  <label>Mot de passe temporaire</label>
+                  <input type="text" required minlength="12" x-model="invite.password"
+                         placeholder="≥ 12 caractères, mélanger majuscules, chiffres, symboles" autocomplete="off" />
+                  <p style="font-size:11px;color:var(--color-text-muted);margin-top:6px;">
+                    L'utilisateur devra le changer à la première connexion.
+                  </p>
+                </div>
+                <div x-show="inviteError" class="login-error" style="margin-top:0;" x-text="inviteError"></div>
+                <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
+                  <button type="button" class="btn-2026" @click="inviteOpen = false">Annuler</button>
+                  <button type="submit" class="btn-2026 btn-2026--primary" :disabled="inviting">
+                    <span x-show="!inviting">Créer le compte</span>
+                    <span x-show="inviting">Création…</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </template>
+
+      </main>
+    </div>
+  </div>
+
+  <style>[x-cloak]{display:none!important}</style>
+</body>
+</html>

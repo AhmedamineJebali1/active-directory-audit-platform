@@ -1,5 +1,14 @@
-localhost {
-    # Frontend static files
+{
+    # Global options. Set ADMIN_EMAIL in your environment so Let's Encrypt
+    # can reach you about expiring certs.
+    email {$ADMIN_EMAIL:admin@adauditai.local}
+}
+
+# Site hostname comes from the PUBLIC_DOMAIN env var. Defaults to "localhost"
+# for local development. To deploy with a real cert, set PUBLIC_DOMAIN to your
+# domain (e.g. adaudit.example.com) and point its DNS at this host — Caddy
+# will auto-issue and renew via Let's Encrypt.
+{$PUBLIC_DOMAIN:localhost} {
     handle /api/* {
         reverse_proxy backend:8000
     }
@@ -14,15 +23,12 @@ localhost {
     handle /healthz {
         reverse_proxy backend:8000
     }
-
     handle /readyz {
         reverse_proxy backend:8000
     }
-
     handle /docs {
         reverse_proxy backend:8000
     }
-
     handle /openapi.json {
         reverse_proxy backend:8000
     }
@@ -31,7 +37,18 @@ localhost {
         reverse_proxy frontend:80
     }
 
-    encode gzip
+    encode gzip zstd
+
+    # Defense-in-depth response headers. Backend already sets these on /api/*;
+    # we duplicate here so static-asset responses get them too.
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
 
     log {
         output stdout

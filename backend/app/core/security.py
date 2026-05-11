@@ -28,17 +28,23 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_access_token(subject: str, role: str) -> str:
+def create_access_token(subject: str, role: str, token_version: int = 0) -> str:
     settings = get_settings()
     expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_access_token_expire_minutes)
-    payload = {"sub": subject, "role": role, "exp": expire, "type": "access"}
+    payload = {
+        "sub": subject, "role": role, "exp": expire,
+        "type": "access", "tv": token_version,
+    }
     return jwt.encode(payload, settings.app_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def create_refresh_token(subject: str, role: str) -> str:
+def create_refresh_token(subject: str, role: str, token_version: int = 0) -> str:
     settings = get_settings()
     expire = datetime.now(UTC) + timedelta(days=settings.jwt_refresh_token_expire_days)
-    payload = {"sub": subject, "role": role, "exp": expire, "type": "refresh"}
+    payload = {
+        "sub": subject, "role": role, "exp": expire,
+        "type": "refresh", "tv": token_version,
+    }
     return jwt.encode(payload, settings.app_secret_key, algorithm=settings.jwt_algorithm)
 
 
@@ -77,6 +83,20 @@ async def get_current_user(
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
         raise AuthenticationError("Compte introuvable ou désactivé")
+
+    # Server-side session revocation: when a user logs out (or admin force-
+    # logout), users.token_version is incremented. JWTs issued before that
+    # carry an older `tv` claim and are rejected here, so they cannot be used
+    # again even though they're still cryptographically valid.
+    #
+    # `token_version` may not exist on the user row yet if migration 0005
+    # hasn't been applied — treat it as 0 in that case so existing sessions
+    # keep working through the transition.
+    token_tv = payload.get("tv")
+    if token_tv is not None:
+        user_tv = getattr(user, "token_version", 0) or 0
+        if token_tv != user_tv:
+            raise AuthenticationError("Session révoquée — veuillez vous reconnecter")
 
     return user
 

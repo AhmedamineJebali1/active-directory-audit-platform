@@ -43,6 +43,12 @@ class Engagement(Base):
 
     creator: Mapped["User"] = relationship(back_populates="engagements")
     analyses: Mapped[list["Analysis"]] = relationship(back_populates="engagement")
+    members: Mapped[list["EngagementMember"]] = relationship(
+        "EngagementMember",
+        back_populates="engagement",
+        foreign_keys="EngagementMember.engagement_id",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Engagement {self.code} client={self.client_name}>"

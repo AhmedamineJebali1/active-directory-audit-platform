@@ -10,11 +10,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.engagement_access import require_engagement_access
 from app.core.exceptions import NotFoundError
 from app.core.security import require_role
 from app.database import get_db
 from app.models.analysis import Analysis
+from app.models.engagement import Engagement
 from app.schemas.analysis import AnalysisResponse
+from typing import Annotated
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["ldap"])
@@ -35,18 +38,12 @@ class LDAPCollectRequest(BaseModel):
     status_code=202,
 )
 async def ldap_collect(
-    engagement_id: uuid.UUID,
     req: LDAPCollectRequest,
+    engagement: Annotated[Engagement, Depends(require_engagement_access("contributor"))],
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(require_role("admin", "manager", "auditor")),
 ):
     """Start a live AD collection from a domain controller."""
-    from app.models.engagement import Engagement
-
-    result = await db.execute(select(Engagement).where(Engagement.id == engagement_id))
-    if not result.scalar_one_or_none():
-        raise NotFoundError("Mission")
-
+    engagement_id = engagement.id
     analysis = Analysis(
         id=uuid.uuid4(),
         engagement_id=engagement_id,

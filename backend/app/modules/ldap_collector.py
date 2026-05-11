@@ -66,7 +66,7 @@ def _mask_to_bh_edges(mask: int, obj_guid: bytes | None, object_type: str) -> li
         return edges  # GenericAll implies everything below
 
     if mask & _WRITE_DAC:
-        edges.append("WriteDACL")
+        edges.append("WriteDacl")
     if mask & _WRITE_OWNER:
         edges.append("WriteOwner")
     if mask & _GENERIC_WRITE:
@@ -325,10 +325,14 @@ class LDAPCollector:
         return {"sid": self.base_dn, "name": self.domain, "dn": self.base_dn}
 
     def collect_users(self) -> list[dict]:
+        # Attribute set mirrors bloodhound-python/bloodhound/ad/domain.py
+        # get_users(include_properties=True). All fields are LDAP-derivable
+        # (no SMB/RPC), so they are honest to collect over LDAP only.
         attrs = [
             "sAMAccountName", "objectSid", "distinguishedName",
             "memberOf", "adminCount", "userAccountControl",
-            "servicePrincipalName",
+            "servicePrincipalName", "primaryGroupID",
+            "msDS-AllowedToDelegateTo", "sIDHistory",
         ]
         rows = self._search_all("(&(objectClass=user)(!(objectClass=computer)))", attrs)
         users = []
@@ -343,10 +347,25 @@ class LDAPCollector:
                 uac_int = int(str(uac))
                 disabled = bool(uac_int & 2)
                 asrep_roastable = bool(uac_int & 0x400000)  # DONT_REQ_PREAUTH
+                unconstrained = bool(uac_int & 0x80000)     # TRUSTED_FOR_DELEGATION
             except Exception:
                 disabled = False
                 asrep_roastable = False
+                unconstrained = False
             has_spn = bool(_as_list(row.get("servicePrincipalName")))
+            # primaryGroupID is a numeric RID — must be combined with the
+            # domain SID to produce the actual group SID (S-1-5-21-X-<RID>).
+            primary_rid = row.get("primaryGroupID")
+            try:
+                primary_rid = int(str(primary_rid)) if primary_rid is not None else None
+            except (TypeError, ValueError):
+                primary_rid = None
+            # Resolve sIDHistory — list of binary SIDs
+            sid_history = []
+            for h in _as_list(row.get("sIDHistory")):
+                hs = _sid_to_str(h)
+                if hs:
+                    sid_history.append(hs)
             users.append({
                 "sid": sid,
                 "name": name,
@@ -356,6 +375,10 @@ class LDAPCollector:
                 "enabled": not disabled,
                 "has_spn": has_spn,
                 "asrep_roastable": asrep_roastable,
+                "unconstrained_delegation": unconstrained,
+                "primary_group_rid": primary_rid,
+                "allowed_to_delegate": _as_list(row.get("msDS-AllowedToDelegateTo")),
+                "sid_history": sid_history,
             })
         logger.info("users_collected", extra={"count": len(users)})
         return users
@@ -364,6 +387,9 @@ class LDAPCollector:
         attrs = [
             "sAMAccountName", "objectSid", "distinguishedName",
             "memberOf", "operatingSystem", "dNSHostName",
+            "userAccountControl", "primaryGroupID",
+            "msDS-AllowedToDelegateTo", "msDS-AllowedToActOnBehalfOfOtherIdentity",
+            "sIDHistory",
         ]
         rows = self._search_all("(objectClass=computer)", attrs)
         computers = []
@@ -375,12 +401,42 @@ class LDAPCollector:
             sam = (row.get("sAMAccountName") or "").rstrip("$")
             name = dns or sam or row["dn"]
             self._dn_sid[row["dn"]] = sid
+            uac = row.get("userAccountControl") or 0
+            try:
+                uac_int = int(str(uac))
+                unconstrained = bool(uac_int & 0x80000)  # TRUSTED_FOR_DELEGATION
+            except Exception:
+                unconstrained = False
+            primary_rid = row.get("primaryGroupID")
+            try:
+                primary_rid = int(str(primary_rid)) if primary_rid is not None else None
+            except (TypeError, ValueError):
+                primary_rid = None
+            sid_history = []
+            for h in _as_list(row.get("sIDHistory")):
+                hs = _sid_to_str(h)
+                if hs:
+                    sid_history.append(hs)
+            # msDS-AllowedToActOnBehalfOfOtherIdentity is a Security Descriptor
+            # blob. Each ACE's PrincipalSID is a "controller" able to perform
+            # RBCD against this computer (AllowedToAct edge: principal -> this).
+            rbcd_principals: list[str] = []
+            sd_blob = row.get("msDS-AllowedToActOnBehalfOfOtherIdentity")
+            if isinstance(sd_blob, (bytes, bytearray)) and len(sd_blob) > 20:
+                for e in _parse_dacl_edges(bytes(sd_blob), sid, "Computer"):
+                    if e.get("source"):
+                        rbcd_principals.append(e["source"])
             computers.append({
                 "sid": sid,
                 "name": name,
                 "dn": row["dn"],
                 "member_of": _as_list(row.get("memberOf")),
                 "os": row.get("operatingSystem"),
+                "unconstrained_delegation": unconstrained,
+                "primary_group_rid": primary_rid,
+                "allowed_to_delegate": _as_list(row.get("msDS-AllowedToDelegateTo")),
+                "rbcd_principals": rbcd_principals,
+                "sid_history": sid_history,
             })
         logger.info("computers_collected", extra={"count": len(computers)})
         return computers
@@ -414,7 +470,7 @@ class LDAPCollector:
 
         Queries users, computers, groups, and domain objects. Parses binary
         Security Descriptors to find BloodHound-relevant ACE rights:
-        GenericAll, WriteDACL, WriteOwner, GenericWrite, GetChangesAll (DCSync),
+        GenericAll, WriteDacl, WriteOwner, GenericWrite, GetChangesAll (DCSync),
         ForceChangePassword, AddMember.
 
         Returns a list of {"source": sid, "target": sid, "label": edge_type} dicts.
@@ -485,13 +541,26 @@ class LDAPCollector:
     # ── Graph builder ───────────────────────────────────────────────────────
 
     def _privileged_group_sids(self, groups: list[dict]) -> set[str]:
-        """Return SIDs of Domain Admins, Enterprise Admins, Schema Admins, Administrators."""
+        """Return SIDs of groups whose members are AUTO-LOCAL-ADMIN on every
+        domain-joined computer in default AD configurations.
+
+        Used only by the LDAP `AdminTo` heuristic (we cannot enumerate local
+        Administrators groups via LDAP — that requires SMB/SAMR). Restricted
+        to genuinely auto-admin groups:
+          - Domain Admins (-512): added to local Administrators on join
+          - Enterprise Admins (-519): forest-wide auto-admin
+          - Builtin Administrators (S-1-5-32-544): direct match on DCs
+
+        Schema Admins (-518) are NOT included — they have schema-modification
+        rights but aren't auto-admin on workstations.
+        """
         result: set[str] = set()
         for g in groups:
             sid = g["sid"]
-            if sid == "S-1-5-32-544":
+            # Builtin Administrators — bare or domain-prefixed
+            if sid == "S-1-5-32-544" or sid.endswith("-S-1-5-32-544"):
                 result.add(sid)
-            for rid in ("512", "519", "518"):
+            for rid in ("512", "519"):
                 if sid.endswith(f"-{rid}"):
                     result.add(sid)
                     break
@@ -551,6 +620,9 @@ class LDAPCollector:
                     "name": u["name"],
                     "enabled": u["enabled"],
                     "admincount": u["admin_count"],
+                    "unconstraineddelegation": u.get("unconstrained_delegation", False),
+                    "hasspn": u.get("has_spn", False),
+                    "dontreqpreauth": u.get("asrep_roastable", False),
                 },
             })
 
@@ -559,7 +631,11 @@ class LDAPCollector:
                 "id": c["sid"],
                 "label": c["name"].upper(),
                 "type": "Computer",
-                "properties": {"name": c["name"], "operatingsystem": c.get("os")},
+                "properties": {
+                    "name": c["name"],
+                    "operatingsystem": c.get("os"),
+                    "unconstraineddelegation": c.get("unconstrained_delegation", False),
+                },
             })
 
         for g in groups:
@@ -589,14 +665,85 @@ class LDAPCollector:
         for g in groups:
             edges.append({"source": domain["sid"], "target": g["sid"], "label": "Contains"})
 
-        # AdminTo: effective DA/EA/Admins members → all domain computers
+        # ── primaryGroupID → MemberOf ───────────────────────────────────────
+        # Every user/computer is implicitly a member of its primary group, but
+        # AD does NOT store this in `member`/`memberOf` — the relationship is
+        # inferred from the integer RID + the domain SID.
+        domain_sid = domain.get("sid", "")
+        if domain_sid.startswith("S-1-5-21-"):
+            valid_group_sids = {g["sid"] for g in groups}
+            for principal in (*users, *computers):
+                rid = principal.get("primary_group_rid")
+                if rid is None:
+                    continue
+                pg_sid = f"{domain_sid}-{rid}"
+                if pg_sid in valid_group_sids:
+                    edges.append({"source": principal["sid"], "target": pg_sid, "label": "MemberOf"})
+
+        # ── AdminTo (HEURISTIC — derived from default-AD assumptions) ───────
+        # WARNING: this is NOT a real local-admin enumeration. Real BloodHound
+        # uses SAMR over SMB to read the local Administrators group on each
+        # computer (see bloodhound-python/enumeration/computers.py
+        # rpc_get_group_members(544)). LDAP cannot do that.
+        # We emit AdminTo for groups that ARE auto-local-admin in default AD
+        # configurations (Domain Admins, Enterprise Admins, Builtin/Admins).
+        # Custom local admins, removed-from-defaults, etc. are missed.
+        # Edges are flagged `derived_from: ldap_heuristic` so the UI can
+        # explain the limitation to the auditor.
         priv_sids = self._privileged_group_sids(groups)
         priv_members = self._effective_members(groups, priv_sids)
         for member_sid in priv_members:
             for c in computers:
-                edges.append({"source": member_sid, "target": c["sid"], "label": "AdminTo"})
+                edges.append({
+                    "source": member_sid, "target": c["sid"], "label": "AdminTo",
+                    "properties": {"derived_from": "ldap_heuristic"},
+                })
 
-        # ACL-based edges (GenericAll, WriteDACL, WriteOwner, GetChangesAll, etc.)
+        # ── AllowedToDelegate (constrained delegation, LDAP-derivable) ──────
+        # msDS-AllowedToDelegateTo holds SPN strings. Resolve each SPN to its
+        # owning principal by matching the host part against computer DNS names.
+        host_to_sid = {}
+        for c in computers:
+            for key in ("name",):
+                hn = (c.get(key) or "").lower()
+                if hn:
+                    host_to_sid[hn] = c["sid"]
+                    # Also index just the short hostname (before first dot)
+                    short = hn.split(".", 1)[0]
+                    host_to_sid.setdefault(short, c["sid"])
+
+        for principal in (*users, *computers):
+            for spn in principal.get("allowed_to_delegate", []) or []:
+                spn_str = str(spn)
+                # SPN format: "service/host:port" or "service/host"
+                try:
+                    host = spn_str.split("/", 1)[1].split(":", 1)[0].split("/", 1)[0].lower()
+                except (IndexError, AttributeError):
+                    continue
+                target_sid = host_to_sid.get(host) or host_to_sid.get(host.split(".",1)[0])
+                if target_sid:
+                    edges.append({
+                        "source": principal["sid"], "target": target_sid,
+                        "label": "AllowedToDelegate",
+                    })
+
+        # ── AllowedToAct (RBCD — LDAP-derivable from msDS-AllowedToActOn…) ─
+        for c in computers:
+            for principal_sid in c.get("rbcd_principals", []) or []:
+                edges.append({
+                    "source": principal_sid, "target": c["sid"],
+                    "label": "AllowedToAct",
+                })
+
+        # ── HasSIDHistory ───────────────────────────────────────────────────
+        for principal in (*users, *computers):
+            for hist_sid in principal.get("sid_history", []) or []:
+                edges.append({
+                    "source": principal["sid"], "target": hist_sid,
+                    "label": "HasSIDHistory",
+                })
+
+        # ACL-based edges (GenericAll, WriteDacl, WriteOwner, GetChangesAll, etc.)
         if acl_edges:
             edges.extend(acl_edges)
 

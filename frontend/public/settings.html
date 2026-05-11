@@ -12,8 +12,11 @@
   <link rel="stylesheet" href="/css/base.css?v=11" />
   <link rel="stylesheet" href="/css/components.css?v=11" />
   <link rel="stylesheet" href="/css/dashboard.css?v=11" />
-  <script src="/js/api.js?v=11"></script>
+  <link rel="stylesheet" href="/css/toast.css?v=11" />
+  <script src="/js/api.js?v=14"></script>
   <script src="/js/auth.js?v=11"></script>
+  <script src="/js/toast.js?v=11"></script>
+  <script src="/js/status_chips.js?v=11"></script>
   <script src="/js/settings.js?v=11"></script>
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
 
@@ -277,7 +280,7 @@
                       <div class="config-section-title">Clé API</div>
                       <div class="key-input-wrap">
                         <input class="form-control" :type="showKey ? 'text' : 'password'" x-model="apiKey"
-                               :placeholder="currentConfig && currentConfig.has_api_key && isActive(selected) ? '••••••••••• (existante)' : 'Entrez votre clé API'" />
+                               :placeholder="hasKey(selected) ? '••••••••••• (clé enregistrée)' : 'Entrez votre clé API'" />
                         <button type="button" class="key-toggle" @click="showKey = !showKey"
                                 x-text="showKey ? 'Masquer' : 'Afficher'"></button>
                       </div>

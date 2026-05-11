@@ -23,16 +23,18 @@ Analyse ce chemin d'attaque en considérant :
 
 ## Format de réponse OBLIGATOIRE
 
-Tu DOIS retourner UNIQUEMENT un objet JSON valide avec exactement cette structure, sans texte avant ou après :
+Tu DOIS retourner UNIQUEMENT un objet JSON valide avec exactement cette structure, sans texte avant ou après, sans bloc markdown ` ``` `, sans préambule :
 
 {{
-  "exploitability_score": <entier de 0 à 10>,
-  "stealth_score": <entier de 0 à 10>,
-  "global_score": <entier de 0 à 10>,
+  "exploitability_score": <nombre de 0 à 10>,
+  "stealth_score": <nombre de 0 à 10>,
+  "global_score": <nombre de 0 à 10>,
   "risk_level": "<Faible|Moyen|Élevé|Critique>",
-  "explanation": "<explication détaillée en français, minimum 150 mots, décrivant le chemin d'attaque, les techniques utilisées, et pourquoi c'est dangereux>",
-  "recommendation": "<recommandations concrètes en français, minimum 100 mots, avec des actions prioritaires numérotées pour remédier à cette vulnérabilité>"
+  "explanation": "<explication détaillée en français, 150 à 400 mots, décrivant le chemin d'attaque, les techniques utilisées, et pourquoi c'est dangereux>",
+  "recommendation": "<recommandations concrètes en français, 100 à 300 mots, avec des actions prioritaires numérotées pour remédier à cette vulnérabilité>"
 }}
+
+Si une donnée manque dans le contexte, retourner quand même un JSON valide en remplissant les champs avec ta meilleure estimation experte — JAMAIS de texte hors JSON.
 
 ## Règles de scoring
 

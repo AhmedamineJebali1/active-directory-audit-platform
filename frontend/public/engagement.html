@@ -12,12 +12,14 @@
   <link rel="stylesheet" href="/css/base.css?v=11" />
   <link rel="stylesheet" href="/css/components.css?v=11" />
   <link rel="stylesheet" href="/css/dashboard.css?v=11" />
-  <script src="/js/api.js?v=11"></script>
-  <script src="/js/auth.js?v=7"></script>
-  <script src="/js/ws_client.js"></script>
-  <script src="/js/upload.js"></script>
-  <script src="/js/engagement.js?v=12"></script>
+  <link rel="stylesheet" href="/css/toast.css?v=11" />
+  <script src="/js/api.js?v=14"></script>
   <script src="/js/auth.js?v=11"></script>
+  <script src="/js/toast.js?v=11"></script>
+  <script src="/js/status_chips.js?v=11"></script>
+  <script src="/js/ws_client.js?v=11"></script>
+  <script src="/js/upload.js?v=15"></script>
+  <script src="/js/engagement.js?v=16"></script>
   <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
 
@@ -152,8 +154,9 @@
     .detail-layout { display: grid; grid-template-columns: 1fr 240px; gap: 20px; align-items: start; }
     @media (max-width: 900px) { .detail-layout { grid-template-columns: 1fr; } }
 
-    /* Upload zone */
+    /* Upload zone — uses <label for="..."> so click→file-picker is browser-native */
     .upload-zone {
+      display: block;
       border: 2px dashed var(--color-border2);
       border-radius: var(--radius-lg);
       padding: 40px 24px;
@@ -218,6 +221,91 @@
       border-top-color: var(--color-accent);
       border-radius: 50%; animation: spin 0.7s linear infinite;
     }
+
+    /* ── MITRE matrix heatmap ───────────────────────────── */
+    .mitre-matrix {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      align-items: start;
+    }
+    .mitre-col {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .mitre-col__head {
+      padding: 10px 12px;
+      background: rgba(0, 0, 0, 0.3);
+      border-bottom: 1px solid var(--color-border);
+    }
+    .mitre-col__name {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--color-text);
+    }
+    .mitre-col__count {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+    .mitre-col__cells {
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .mitre-cell {
+      position: relative;
+      display: block;
+      padding: 8px 30px 8px 10px;
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      transition: transform 120ms var(--ease-out), border-color 120ms var(--ease-out);
+      border: 1px solid transparent;
+    }
+    .mitre-cell:hover { transform: translateY(-1px); border-color: var(--color-text); }
+    .mitre-cell__id {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--color-text);
+      letter-spacing: 0.04em;
+    }
+    .mitre-cell__name {
+      display: block;
+      font-size: 11px;
+      color: var(--color-text);
+      margin-top: 2px;
+      line-height: 1.35;
+    }
+    .mitre-cell__count {
+      position: absolute;
+      top: 6px; right: 8px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--color-text);
+      background: rgba(0, 0, 0, 0.4);
+      padding: 1px 6px;
+      border-radius: 8px;
+      min-width: 16px;
+      text-align: center;
+    }
+    .mitre-cell__count:empty { display: none; }
+
+    /* Heat buckets — green→amber→red intensity */
+    .mitre-cell--1 { background: rgba(134, 188, 37, 0.10); }
+    .mitre-cell--2 { background: rgba(234, 179, 8, 0.14); }
+    .mitre-cell--3 { background: rgba(249, 115, 22, 0.18); }
+    .mitre-cell--4 { background: rgba(239, 68, 68, 0.22); }
+    .mitre-cell--5 { background: rgba(239, 68, 68, 0.36); }
+    .mitre-cell--0 { background: rgba(255, 255, 255, 0.03); }
   </style>
 </head>
 <body class="has-mesh-bg">
@@ -242,6 +330,19 @@
 
     <template x-if="!loading && engagement">
       <div>
+
+        <!-- ── Mock-mode warning banner ──────────────────── -->
+        <template x-if="isMockMode()">
+          <div style="margin:0 0 18px 0;display:flex;align-items:flex-start;gap:12px;padding:12px 16px;background:rgba(237,139,0,0.08);border:1px solid rgba(237,139,0,0.3);border-radius:10px;">
+            <span style="color:var(--risk-eleve);font-size:16px;line-height:1;flex-shrink:0;">⚠</span>
+            <div style="flex:1;font-size:13px;line-height:1.55;color:rgba(255,255,255,0.85);">
+              <strong style="color:var(--risk-eleve);">Mode démo</strong> —
+              les analyses générées par cette mission utilisent un simulateur local. Les scores et recommandations sont fictifs.
+              Pour activer une IA réelle&nbsp;:
+              <a href="/settings.html" style="color:var(--color-accent);text-decoration:underline;">Configuration IA</a>.
+            </div>
+          </div>
+        </template>
 
         <!-- ── Page header ──────────────────────────────── -->
         <div class="page-header">
@@ -297,6 +398,18 @@
             Chemins d'attaque
             <span class="tab-badge" x-text="paths.length ? paths.length : ''"></span>
           </button>
+          <button class="tab-btn" :class="activeTab==='mitre'?'active':''" @click="switchTab('mitre')">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+              <rect x="1.5" y="1.5" width="3" height="3" stroke="currentColor" stroke-width="1.2"/>
+              <rect x="5.5" y="1.5" width="3" height="3" stroke="currentColor" stroke-width="1.2"/>
+              <rect x="9.5" y="1.5" width="2" height="3" stroke="currentColor" stroke-width="1.2"/>
+              <rect x="1.5" y="5.5" width="3" height="3" stroke="currentColor" stroke-width="1.2" fill="currentColor" fill-opacity="0.4"/>
+              <rect x="5.5" y="5.5" width="3" height="3" stroke="currentColor" stroke-width="1.2"/>
+              <rect x="1.5" y="9.5" width="3" height="2" stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+            Matrice MITRE
+            <span class="tab-badge" x-text="mitreCoverage ? mitreCoverage.techniques.length : ''"></span>
+          </button>
         </div>
 
         <!-- ── Tab content ──────────────────────────────── -->
@@ -320,6 +433,10 @@
                         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M4 5h5M4 7.5h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
                         Import JSON BloodHound
                       </button>
+                      <button class="btn btn-sm" :class="sourceMode==='zip'?'btn-primary':'btn-secondary'" @click="sourceMode='zip'">
+                        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="1.5" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 3v4M4.5 5.5l2 2 2-2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9.5h5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                        Import ZIP BloodHound
+                      </button>
                       <button class="btn btn-sm" :class="sourceMode==='ldap'?'btn-primary':'btn-secondary'" @click="sourceMode='ldap'">
                         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="3.5" width="5" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="7" y="1" width="5" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="7" y="8.5" width="5" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M6 5h.5M6.5 2.5v7.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
                         Collecte Active Directory live
@@ -332,22 +449,60 @@
                 <div class="card" x-show="sourceMode==='json' && canUpload() && (!activeAnalysis || activeAnalysis.status === 'failed')" style="margin-bottom:20px;">
                   <div class="card-header">
                     <div>
-                      <h3 style="font-size:15px;font-weight:600;">Importer un export BloodHound</h3>
-                      <p style="font-size:12px;color:var(--color-stone);margin-top:2px;">Fichier JSON exporté depuis SharpHound ou BloodHound CE · max 100 MB</p>
+                      <h3 style="font-size:15px;font-weight:600;">Importer un export BloodHound (JSON)</h3>
+                      <p style="font-size:12px;color:var(--color-stone);margin-top:2px;">Fichier JSON unique exporté depuis SharpHound ou BloodHound CE · max 200 MB</p>
                     </div>
                   </div>
                   <div class="card-body">
-                    <div id="upload-zone" class="upload-zone">
+                    <!-- <label for="..."> so the click-to-open is browser-native.
+                         This avoids the double-click race where the second mouse-up
+                         from a double-click on a file gets delivered to a JS click
+                         handler and reopens the picker. -->
+                    <label for="upload-input" id="upload-zone" class="upload-zone">
                       <div class="upload-zone-icon">
                         <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 22V8M9 15l7-7 7 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 26h24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
                       </div>
                       <div class="upload-zone-text">Glissez votre fichier ici ou cliquez pour parcourir</div>
                       <div class="upload-zone-hint">Export BloodHound v4 ou v5 au format JSON</div>
-                    </div>
+                    </label>
                     <input type="file" id="upload-input" accept=".json,application/json" style="display:none" />
                     <div style="text-align:center;" x-show="!uploadingPercent">
                       <button class="upload-demo-link" @click="useDemoFile()">Utiliser le fichier de démonstration →</button>
                     </div>
+                    <template x-if="uploadingPercent !== null">
+                      <div style="margin-top:16px;">
+                        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
+                          <span style="color:var(--color-stone);">Envoi en cours…</span>
+                          <span x-text="uploadingPercent + '%'"></span>
+                        </div>
+                        <div class="progress-bar-wrap"><div class="progress-bar-fill" :style="'width:'+uploadingPercent+'%'"></div></div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Upload card (ZIP mode) -->
+                <div class="card" x-show="sourceMode==='zip' && canUpload() && (!activeAnalysis || activeAnalysis.status === 'failed')" style="margin-bottom:20px;">
+                  <div class="card-header">
+                    <div>
+                      <h3 style="font-size:15px;font-weight:600;">Importer une archive BloodHound (ZIP)</h3>
+                      <p style="font-size:12px;color:var(--color-stone);margin-top:2px;">Archive ZIP complète générée par SharpHound — contient tous les types d'objets AD · max 200 MB</p>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <!-- Info banner -->
+                    <div style="display:flex;gap:10px;padding:10px 14px;background:rgba(134,188,37,0.05);border:1px solid rgba(134,188,37,0.2);border-radius:var(--radius-sm);margin-bottom:16px;">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:var(--color-accent);flex-shrink:0;margin-top:1px;"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v4M8 11v.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+                      <span style="font-size:12px;color:var(--color-stone);line-height:1.55;">Format recommandé pour SharpHound 2.x et BloodHound CE. L'archive peut contenir plusieurs fichiers JSON (users, groups, computers, domains…) — ils seront tous fusionnés automatiquement.</span>
+                    </div>
+                    <label for="upload-input-zip" id="upload-zone-zip" class="upload-zone">
+                      <div class="upload-zone-icon">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><rect x="4" y="3" width="24" height="26" rx="2" stroke="currentColor" stroke-width="2"/><path d="M14 3v10l3-3 3 3V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 19h14M9 23h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                      </div>
+                      <div class="upload-zone-text">Glissez votre archive ZIP ici ou cliquez pour parcourir</div>
+                      <div class="upload-zone-hint">Archive SharpHound (.zip) · BloodHound CE v6</div>
+                    </label>
+                    <input type="file" id="upload-input-zip" accept=".zip,application/zip" style="display:none" />
                     <template x-if="uploadingPercent !== null">
                       <div style="margin-top:16px;">
                         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;">
@@ -423,6 +578,28 @@
                   </div>
                 </div>
 
+                <!-- Failure card (shown when analysis fails) -->
+                <template x-if="activeAnalysis && activeAnalysis.status === 'failed'">
+                  <div class="card" style="margin-bottom:20px;border-color:rgba(200,16,46,0.35);">
+                    <div class="card-header">
+                      <div>
+                        <h3 style="font-size:15px;font-weight:600;color:var(--risk-critique);">Analyse échouée</h3>
+                        <p style="font-size:12px;color:var(--color-stone);margin-top:2px;" x-text="activeAnalysis.source_filename||''"></p>
+                      </div>
+                      <span class="status-pill" style="background:rgba(200,16,46,0.12);color:var(--risk-critique);">Échec</span>
+                    </div>
+                    <div class="card-body">
+                      <div style="background:rgba(200,16,46,0.08);border:1px solid rgba(200,16,46,0.25);border-radius:6px;padding:14px 16px;font-size:13px;line-height:1.6;color:rgba(255,255,255,0.85);">
+                        <strong style="color:var(--risk-critique);display:block;margin-bottom:6px;">Détail de l'erreur</strong>
+                        <span x-text="activeAnalysis.error_message || progressMessage || 'Erreur inconnue'" style="font-family:var(--font-mono);font-size:12px;word-break:break-word;"></span>
+                      </div>
+                      <div style="margin-top:14px;display:flex;gap:10px;">
+                        <button class="btn btn-secondary btn-sm" @click="resetForNewAnalysis()">Nouvelle analyse</button>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
                 <!-- Analysis progress card -->
                 <template x-if="activeAnalysis && activeAnalysis.status !== 'failed'">
                   <div class="card" style="margin-bottom:20px;">
@@ -450,6 +627,13 @@
 
                       <template x-if="stageExplanation()">
                         <div style="margin-top:12px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:12px;color:var(--color-stone);line-height:1.6;" x-text="stageExplanation()"></div>
+                      </template>
+
+                      <template x-if="activeAnalysis.status === 'completed' && activeAnalysis.error_message">
+                        <div style="margin-top:14px;background:rgba(237,139,0,0.07);border:1px solid rgba(237,139,0,0.25);border-radius:6px;padding:12px 14px;font-size:13px;line-height:1.55;color:rgba(255,255,255,0.85);">
+                          <strong style="color:var(--risk-eleve);">Note&nbsp;:</strong>
+                          <span x-text="activeAnalysis.error_message"></span>
+                        </div>
                       </template>
 
                       <template x-if="activeAnalysis.status === 'completed'">
@@ -746,6 +930,64 @@
                 </div>
               </div>
             </template>
+
+            <!-- ── MITRE matrix tab ────────────────────────── -->
+            <div x-show="activeTab === 'mitre'">
+              <div class="card">
+                <div class="card-header">
+                  <div>
+                    <h3 style="font-size:15px;font-weight:600;">Matrice ATT&amp;CK</h3>
+                    <p style="font-size:12px;color:var(--color-stone);margin-top:4px;">
+                      Couverture par tactique × technique. L'intensité de la couleur reflète le nombre de chemins concernés.
+                    </p>
+                  </div>
+                  <template x-if="mitreCoverage">
+                    <span style="font-size:12px;color:var(--color-stone);">
+                      <strong style="color:var(--color-text);" x-text="mitreCoverage.techniques.length"></strong> techniques sur
+                      <strong style="color:var(--color-text);" x-text="Object.keys(mitreCoverage.count_by_tactic||{}).length"></strong> tactiques
+                    </span>
+                  </template>
+                </div>
+                <div class="card-body">
+                  <template x-if="mitreLoading">
+                    <div class="empty-state"><span class="spinner"></span></div>
+                  </template>
+                  <template x-if="!mitreLoading && (!mitreCoverage || mitreCoverage.techniques.length === 0)">
+                    <div style="padding:24px;text-align:center;color:var(--color-stone);font-size:13px;">
+                      Aucune technique MITRE détectée pour cette analyse.
+                    </div>
+                  </template>
+                  <!-- Matrix iterates a PRE-COMPUTED list (engagement.js builds
+                       `mitreColumns` after loading /mitre). This sidesteps a
+                       nested-x-for+x-show Alpine quirk that left the matrix
+                       empty even with valid data. -->
+                  <template x-if="!mitreLoading && mitreColumns.length > 0">
+                    <div class="mitre-matrix">
+                      <template x-for="col in mitreColumns" :key="col.id || col.name">
+                        <div class="mitre-col">
+                          <div class="mitre-col__head">
+                            <div class="mitre-col__name" x-text="col.name"></div>
+                            <div class="mitre-col__count" x-text="col.techniques.length + ' tech.'"></div>
+                          </div>
+                          <div class="mitre-col__cells">
+                            <template x-for="t in col.techniques" :key="t.technique_id">
+                              <a class="mitre-cell"
+                                 :class="'mitre-cell--' + mitreCellHeat(t.count || 1)"
+                                 :href="t.url" target="_blank" rel="noopener noreferrer"
+                                 :title="t.technique_name + ' (' + (t.count || 0) + ' chemins)'">
+                                <span class="mitre-cell__id" x-text="t.technique_id"></span>
+                                <span class="mitre-cell__name" x-text="t.technique_name"></span>
+                                <span class="mitre-cell__count" x-text="t.count || ''"></span>
+                              </a>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
 
           </div>
           <!-- /tabs -->

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Journal d'audit — AD Audit AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=12" />
+  <link rel="stylesheet" href="/css/redesign.css?v=12" />
+  <link rel="stylesheet" href="/css/base.css?v=12" />
+  <link rel="stylesheet" href="/css/components.css?v=12" />
+  <link rel="stylesheet" href="/css/dashboard.css?v=12" />
+  <link rel="stylesheet" href="/css/toast.css?v=12" />
+  <script src="/js/api.js?v=14"></script>
+  <script src="/js/auth.js?v=12"></script>
+  <script src="/js/toast.js?v=12"></script>
+  <script src="/js/status_chips.js?v=12"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+  <style>
+    .audit-row td { font-size: 12px; }
+    .action-cell { font-family: var(--font-mono); font-size: 11px; }
+    .status-2xx { color: var(--risk-faible); }
+    .status-3xx { color: var(--color-text-muted); }
+    .status-4xx { color: var(--risk-eleve); }
+    .status-5xx { color: var(--risk-critique); }
+    .meta-pill {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.04);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--color-text-muted);
+      margin-right: 4px;
+    }
+  </style>
+</head>
+<body class="has-mesh-bg">
+  <div class="app-shell" id="app-shell">
+    <div id="nav-slot"></div>
+    <div>
+      <header class="topbar">
+        <div>
+          <div class="topbar__breadcrumb"><a href="/dashboard.html" style="color:inherit;text-decoration:none;">Tableau de bord</a> / Journal d'audit</div>
+          <div class="topbar__title">Journal d'audit</div>
+        </div>
+        <div class="topbar__spacer"></div>
+      </header>
+
+      <main class="main-content" x-data="auditApp()" x-init="init()">
+        <template x-if="!isAdmin">
+          <div class="empty-state" style="text-align:center;padding:60px;">
+            <div style="font-size:48px;margin-bottom:16px;">🔒</div>
+            <h2 style="font-size:20px;font-weight:700;">Accès réservé aux administrateurs</h2>
+          </div>
+        </template>
+
+        <template x-if="isAdmin">
+          <div>
+            <p style="font-size:13px;color:var(--color-text-muted);margin-bottom:20px;">
+              Toutes les actions de modification effectuées par les utilisateurs authentifiés (création/modification/suppression). Lecture seule.
+            </p>
+
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">
+              <input class="form-control" type="text" placeholder="Filtre action (ex: POST /api/v1/engagements)"
+                     x-model.debounce.350ms="actionPrefix" @input="reload()" style="max-width:380px;font-family:var(--font-mono);font-size:12px;" />
+              <select class="form-control" x-model="resourceType" @change="reload()" style="max-width:200px;">
+                <option value="">Tous types de ressource</option>
+                <option value="engagement">engagement</option>
+                <option value="analysis">analysis</option>
+                <option value="attack_path">attack_path</option>
+                <option value="user">user</option>
+                <option value="engagement_member">engagement_member</option>
+                <option value="llm_config">llm_config</option>
+                <option value="auth">auth</option>
+              </select>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <h3 style="font-size:14px;font-weight:600;">Événements</h3>
+                <span style="font-size:11px;color:var(--color-text-muted);" x-text="total + ' enregistrement(s)'"></span>
+              </div>
+              <div class="card-body" style="padding:0;">
+                <template x-if="loading">
+                  <div style="padding:30px;text-align:center;"><span class="spinner"></span></div>
+                </template>
+                <table x-show="!loading && events.length > 0" class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Quand</th>
+                      <th>Utilisateur</th>
+                      <th>Action</th>
+                      <th>Ressource</th>
+                      <th>IP</th>
+                      <th>Détails</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="e in events" :key="e.id">
+                      <tr class="audit-row">
+                        <td style="white-space:nowrap;font-family:var(--font-mono);font-size:11px;color:var(--color-text-muted);" x-text="formatDate(e.created_at)"></td>
+                        <td style="font-size:12px;" x-text="e.user_email || '—'"></td>
+                        <td class="action-cell">
+                          <span x-text="e.action"></span>
+                          <span :class="statusClass(e.metadata && e.metadata.status_code)"
+                                style="margin-left:6px;font-weight:700;"
+                                x-text="(e.metadata && e.metadata.status_code) || ''"></span>
+                        </td>
+                        <td style="font-family:var(--font-mono);font-size:10px;color:var(--color-text-muted);">
+                          <span x-show="e.resource_type" x-text="e.resource_type"></span>
+                          <span x-show="e.resource_id" style="opacity:0.6;" x-text="' · ' + (e.resource_id || '').slice(0, 8)"></span>
+                        </td>
+                        <td style="font-family:var(--font-mono);font-size:10px;color:var(--color-text-muted);" x-text="e.ip_address || '—'"></td>
+                        <td>
+                          <template x-if="e.metadata && e.metadata.latency_ms != null">
+                            <span class="meta-pill" :title="'Latence ' + e.metadata.latency_ms + 'ms'" x-text="e.metadata.latency_ms + 'ms'"></span>
+                          </template>
+                          <template x-if="e.metadata && e.metadata.query_keys && e.metadata.query_keys.length">
+                            <span class="meta-pill" x-text="'q: ' + e.metadata.query_keys.join(',')"></span>
+                          </template>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+                <template x-if="!loading && events.length === 0">
+                  <div style="padding:40px;text-align:center;color:var(--color-text-muted);font-size:13px;">
+                    Aucun événement (le journal se remplit dès la première action de modification).
+                  </div>
+                </template>
+              </div>
+              <div x-show="!loading && total > limit" style="padding:12px 16px;display:flex;gap:10px;align-items:center;justify-content:space-between;border-top:1px solid var(--color-border);">
+                <span style="font-size:11px;color:var(--color-text-muted);" x-text="(offset+1) + '–' + Math.min(offset+events.length, total) + ' sur ' + total"></span>
+                <div style="display:flex;gap:8px;">
+                  <button class="btn btn-ghost btn-sm" @click="prev()" :disabled="offset === 0">‹ Précédent</button>
+                  <button class="btn btn-ghost btn-sm" @click="next()" :disabled="offset + limit >= total">Suivant ›</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </main>
+    </div>
+  </div>
+
+  <script>
+  function auditApp() {
+    return {
+      me: {}, isAdmin: false, loading: true,
+      events: [], total: 0,
+      limit: 50, offset: 0,
+      actionPrefix: '', resourceType: '',
+
+      async init() {
+        const u = await auth.requireAuth();
+        if (!u) return;
+        this.me = u; this.isAdmin = u.role === 'admin';
+        auth.renderNav('audit');
+        if (window.statusChips) statusChips.attach({ wsBound: false });
+        if (this.isAdmin) await this.reload();
+        this.loading = false;
+      },
+
+      async reload() {
+        this.loading = true;
+        try {
+          const qs = new URLSearchParams();
+          qs.set('limit', this.limit);
+          qs.set('offset', this.offset);
+          if (this.actionPrefix.trim()) qs.set('action_prefix', this.actionPrefix.trim());
+          if (this.resourceType) qs.set('resource_type', this.resourceType);
+          const res = await fetch('/api/v1/admin/audit-logs?' + qs.toString(), {
+            headers: { 'Authorization': 'Bearer ' + api.getAccessToken() },
+          });
+          if (!res.ok) throw new Error('Erreur ' + res.status);
+          const data = await res.json();
+          this.events = data.items; this.total = data.total;
+        } catch (e) {
+          if (window.toast) toast.error(e.message);
+        } finally {
+          this.loading = false;
+        }
+      },
+
+      prev() { this.offset = Math.max(0, this.offset - this.limit); this.reload(); },
+      next() { this.offset += this.limit; this.reload(); },
+
+      statusClass(code) {
+        if (!code) return '';
+        if (code < 300) return 'status-2xx';
+        if (code < 400) return 'status-3xx';
+        if (code < 500) return 'status-4xx';
+        return 'status-5xx';
+      },
+
+      formatDate(iso) {
+        try { return new Date(iso).toLocaleString('fr-FR'); } catch (_) { return iso; }
+      },
+    };
+  }
+  </script>
+  <style>[x-cloak]{display:none!important}</style>
+</body>
+</html>

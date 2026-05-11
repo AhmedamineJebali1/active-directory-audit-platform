@@ -21,6 +21,7 @@ function settingsApp() {
       this.user = await auth.requireAuth();
       if (!this.user) return;
       auth.renderNav('settings');
+      if (window.statusChips) statusChips.attach({ wsBound: false });
       await Promise.all([this.loadProviders(), this.loadConfig()]);
       this.loading = false;
     },
@@ -105,6 +106,8 @@ function settingsApp() {
         });
         this.apiKey = '';
         this.success = `Configuration appliquée — ${this.selectedMeta.label || this.selected} (${this.selectedModel})`;
+        if (window.toast) toast.success(`Fournisseur LLM activé : ${this.selectedMeta.label || this.selected}`);
+        if (window.statusChips) statusChips.refreshLLM();
       } catch (e) {
         const msg = e.message || '';
         if (msg.startsWith('CLÉ_INVALIDE:')) {
@@ -144,8 +147,13 @@ function settingsApp() {
       try {
         const res = await this._authFetch('/api/v1/llm/test', { method: 'POST' });
         this.testResult = res;
+        if (window.toast) {
+          if (res.success) toast.success(`${this.providerLabel(res.provider)} : connexion réussie`);
+          else toast.error(res.message || 'Connexion échouée');
+        }
       } catch (e) {
         this.testResult = { success: false, message: e.message, provider: 'unknown' };
+        if (window.toast) toast.error(e.message);
       } finally {
         this.testing = false;
       }

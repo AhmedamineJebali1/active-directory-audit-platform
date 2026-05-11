@@ -268,7 +268,7 @@ class TestBuildBundle:
     "edge_type",
     [
         "WriteOwner",
-        "WriteDACL",
+        "WriteDacl",
         "GenericAll",
         "AddMember",
         "ForceChangePassword",

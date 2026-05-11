@@ -10,6 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+from app.core.engagement_access import (
+    require_analysis_access,
+    require_engagement_access,
+)
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.security import get_current_user, require_role
 from app.database import get_db
@@ -24,32 +28,42 @@ settings = get_settings()
 
 @router.post("/engagements/{engagement_id}/analyses", response_model=AnalysisResponse, status_code=202)
 async def upload_analysis(
-    engagement_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user=Depends(require_role("admin", "manager", "auditor")),
+    # Uploading a new analysis requires write access on the engagement.
+    engagement: Annotated[Engagement, Depends(require_engagement_access("contributor"))],
     file: UploadFile = File(...),
 ):
-    result = await db.execute(select(Engagement).where(Engagement.id == engagement_id))
-    engagement = result.scalar_one_or_none()
-    if not engagement:
-        raise NotFoundError("Mission")
-
-    if not file.filename or not file.filename.endswith(".json"):
-        raise ValidationError("Le fichier doit être un JSON BloodHound (.json)")
+    engagement_id = engagement.id
+    fname = file.filename or ""
+    is_zip = fname.lower().endswith(".zip")
+    is_json = fname.lower().endswith(".json")
+    if not (is_zip or is_json):
+        raise ValidationError("Le fichier doit être un export BloodHound (.json ou .zip)")
 
     content = await file.read()
-    if len(content) > 100 * 1024 * 1024:
-        raise ValidationError("Fichier trop volumineux (max 100 MB)")
+    if len(content) > 200 * 1024 * 1024:
+        raise ValidationError("Fichier trop volumineux (max 200 MB)")
+
+    source_type = "bloodhound_zip" if is_zip else "bloodhound_json"
+
+    # Resolve the LLM provider+model the way the agent will actually use them.
+    # The agent reads DB overrides first (set via Settings UI) and falls back
+    # to env. We mirror that here so the analysis row records what was REALLY
+    # used, not what the env says.
+    from app.modules.agent import _load_db_llm_config
+    db_llm = await _load_db_llm_config()
+    effective_provider = db_llm.get("llm_provider") or settings.llm_provider
+    effective_model = db_llm.get("llm_model") or settings.llm_model
 
     analysis = Analysis(
         id=uuid.uuid4(),
         engagement_id=engagement_id,
-        source_type="bloodhound_json",
-        source_filename=file.filename,
+        source_type=source_type,
+        source_filename=fname,
         status="pending",
-        llm_provider=settings.llm_provider,
-        llm_model=settings.llm_model,
+        llm_provider=effective_provider,
+        llm_model=effective_model,
     )
     db.add(analysis)
     await db.commit()
@@ -69,17 +83,12 @@ async def upload_analysis(
 
 @router.get("/engagements/{engagement_id}/analyses", response_model=AnalysisListResponse)
 async def list_analyses(
-    engagement_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user=Depends(get_current_user),
+    engagement: Annotated[Engagement, Depends(require_engagement_access("viewer"))],
 ):
-    result_check = await db.execute(select(Engagement).where(Engagement.id == engagement_id))
-    if not result_check.scalar_one_or_none():
-        raise NotFoundError("Mission")
-
     result = await db.execute(
         select(Analysis)
-        .where(Analysis.engagement_id == engagement_id)
+        .where(Analysis.engagement_id == engagement.id)
         .order_by(Analysis.started_at.desc())
     )
     items = result.scalars().all()
@@ -92,19 +101,18 @@ async def list_analyses(
 
 @router.get("/analyses/{analysis_id}", response_model=AnalysisResponse)
 async def get_analysis(
-    analysis_id: uuid.UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user=Depends(get_current_user),
+    analysis: Annotated[Analysis, Depends(require_analysis_access("viewer"))],
 ):
-    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
-    analysis = result.scalar_one_or_none()
-    if not analysis:
-        raise NotFoundError("Analyse")
     return AnalysisResponse.model_validate(analysis)
 
 
 async def run_analysis_pipeline(analysis_id: str, content: bytes) -> None:
-    """Background task: ingestion → paths → mitre → agent → persist."""
+    """Background task: ingestion → paths → mitre → agent → persist.
+
+    Wraps every step so the analysis row is always moved out of "pending":
+    failures are recorded as `failed` with the exception message, empty
+    graphs/paths complete cleanly with an explanatory note.
+    """
     import asyncio
     import json
 
@@ -119,24 +127,51 @@ async def run_analysis_pipeline(analysis_id: str, content: bytes) -> None:
     pipeline_timeout = settings.llm_timeout_seconds * settings.llm_max_paths + 300
 
     async def _update_status(status: str, progress: int, error: str | None = None):
-        async with factory() as db:
-            result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
-            row = result.scalar_one_or_none()
-            if row:
-                row.status = status
-                row.progress = progress
-                if error:
-                    row.error_message = error
-                if status == "completed":
-                    row.completed_at = datetime.now(UTC)
-                await db.commit()
+        # Status updates must NEVER raise — otherwise an analysis can stay stuck
+        # in "pending" forever even when the outer try/except runs.
+        try:
+            async with factory() as db:
+                result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
+                row = result.scalar_one_or_none()
+                if row:
+                    row.status = status
+                    row.progress = progress
+                    if error:
+                        row.error_message = error[:2000]
+                    if status == "completed":
+                        row.completed_at = datetime.now(UTC)
+
+                    # Auto-advance the parent engagement out of "draft" as soon
+                    # as an analysis runs — otherwise the dashboard keeps
+                    # showing the mission in the "En attente" column forever.
+                    # Only move forward, never backward: leave "completed" /
+                    # "archived" engagements alone.
+                    if status in ("ingesting", "extracting_paths", "analyzing",
+                                  "completed", "failed"):
+                        eng_q = await db.execute(
+                            select(Engagement).where(Engagement.id == row.engagement_id)
+                        )
+                        eng = eng_q.scalar_one_or_none()
+                        if eng and eng.status == "draft":
+                            eng.status = "in_progress"
+
+                    await db.commit()
+        except Exception as exc:
+            logger.exception(
+                "status_update_failed",
+                extra={"analysis_id": analysis_id, "target_status": status, "error": str(exc)},
+            )
 
     async def _run_core():
         await _update_status("ingesting", 5)
         _broadcast_ws(analysis_id, "ingestion", 5, "Ingestion du graphe BloodHound en cours...")
 
-        bh_data = json.loads(content)
-        graph, node_count, edge_count = ingestion.ingest_bloodhound(bh_data)
+        # Detect format: ZIP magic bytes are PK\x03\x04
+        if content[:4] == b"PK\x03\x04":
+            graph, node_count, edge_count = ingestion.ingest_bloodhound_zip(content)
+        else:
+            bh_data = json.loads(content)
+            graph, node_count, edge_count = ingestion.ingest_bloodhound(bh_data)
 
         async with factory() as db:
             result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
@@ -157,6 +192,23 @@ async def run_analysis_pipeline(analysis_id: str, content: bytes) -> None:
             if row:
                 row.total_paths = len(paths)
                 await db.commit()
+
+        # No paths → finish cleanly. The graph itself is still available for
+        # exploration in the "Graphe" tab; persisting an empty paths list is
+        # a normal outcome (e.g. small lab AD with no obvious escalation).
+        if not paths:
+            msg = (
+                f"Aucun chemin d'attaque trouvé. Graphe ingéré : "
+                f"{node_count} nœuds, {edge_count} arêtes. "
+                "Aucune cible privilégiée atteignable depuis les comptes non-privilégiés."
+            )
+            logger.warning(
+                "pipeline_no_paths",
+                extra={"analysis_id": analysis_id, "nodes": node_count, "edges": edge_count},
+            )
+            await _update_status("completed", 100, error=msg)
+            _broadcast_ws(analysis_id, "completed", 100, msg)
+            return
 
         await _update_status("analyzing", 40)
         _broadcast_ws(analysis_id, "mitre", 40, "Enrichissement MITRE ATT&CK...")
@@ -218,20 +270,111 @@ async def run_analysis_pipeline(analysis_id: str, content: bytes) -> None:
         _broadcast_ws(analysis_id, "failed", 0, f"Erreur : {exc}")
 
 
+@router.post("/analyses/detect-format")
+async def detect_format_endpoint(
+    current_user=Depends(get_current_user),
+    file: UploadFile = File(...),
+) -> dict:
+    """Read-only preview: inspect an uploaded BloodHound file and return what
+    the platform would do with it, WITHOUT writing anything to the database
+    or running the LLM pipeline.
+
+    Returns:
+      - format: detected format identifier (e.g. ``bloodhound_zip_ce_v6``)
+      - version: BloodHound output version when known
+      - file_types: per-section item counts
+      - graph: ``{nodes, edges, privileged_nodes, source_candidates}`` —
+               actual ingest result
+      - sample_paths: up to 3 lowest-hop paths to a privileged target
+      - errors / warnings: any parse issues
+    """
+    from app.modules import ingestion as ing
+    from app.modules.paths import extract_attack_paths
+
+    fname = (file.filename or "").lower()
+    content = await file.read()
+    if len(content) > 200 * 1024 * 1024:
+        raise ValidationError("Fichier trop volumineux (max 200 MB)")
+
+    detection = ing.detect_format(content)
+
+    # Try a real ingest preview — bounded by the same 200MB cap.
+    graph_summary: dict = {"nodes": 0, "edges": 0, "privileged_nodes": 0,
+                           "source_candidates": 0}
+    sample_paths: list[dict] = []
+    ingest_error: str | None = None
+
+    try:
+        if content[:4] == b"PK\x03\x04":
+            graph, n, e = ing.ingest_bloodhound_zip(content)
+        else:
+            import json as _json
+            data = _json.loads(content)
+            graph, n, e = ing.ingest_bloodhound(data)
+
+        priv = sum(1 for _, d in graph.nodes(data=True) if d.get("is_privileged"))
+        srcs = sum(1 for _, d in graph.nodes(data=True)
+                   if not d.get("is_privileged")
+                   and d.get("node_type") in ("User", "Computer", "Group"))
+        graph_summary = {
+            "nodes": n, "edges": e,
+            "privileged_nodes": priv,
+            "source_candidates": srcs,
+        }
+
+        # Sample top-3 shortest paths
+        paths = extract_attack_paths(graph)
+        for p in sorted(paths, key=lambda x: x.length)[:3]:
+            sample_paths.append({
+                "source": p.source_node,
+                "target": p.target_node,
+                "length": p.length,
+                "edge_types": p.edge_types,
+            })
+    except Exception as ex:
+        ingest_error = str(ex)[:300]
+
+    return {
+        "filename": file.filename,
+        "size_bytes": len(content),
+        "detection": detection,
+        "graph": graph_summary,
+        "sample_paths": sample_paths,
+        "ingest_error": ingest_error,
+    }
+
+
+@router.get("/analyses/{analysis_id}/events")
+async def get_analysis_events(
+    analysis: Annotated[Analysis, Depends(require_analysis_access("viewer"))],
+) -> dict:
+    """Return the replay buffer of pipeline events + current status/error.
+
+    Lets the UI reconstruct the timeline (stages, messages, error_message)
+    even if the WebSocket missed the live events.
+    """
+    from app.api.v1.ws import manager
+
+    analysis_id = analysis.id
+
+    return {
+        "analysis_id": str(analysis_id),
+        "status": analysis.status,
+        "progress": analysis.progress,
+        "error_message": analysis.error_message,
+        "events": manager.get_events(str(analysis_id)),
+    }
+
+
 @router.get("/analyses/{analysis_id}/graph")
 async def get_analysis_graph(
-    analysis_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user=Depends(get_current_user),
+    analysis: Annotated[Analysis, Depends(require_analysis_access("viewer"))],
 ) -> dict:
     """Return graph data (nodes + edges + paths) for Cytoscape.js rendering."""
     from app.models.analysis import AttackPath, PathMitreTechnique
 
-    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
-    analysis = result.scalar_one_or_none()
-    if not analysis:
-        raise NotFoundError("Analyse")
-
+    analysis_id = analysis.id
     paths_result = await db.execute(
         select(AttackPath).where(AttackPath.analysis_id == analysis_id)
     )
@@ -319,14 +462,28 @@ async def get_analysis_graph(
 
 
 def _broadcast_ws(analysis_id: str, stage: str, progress: int, message_fr: str) -> None:
-    """Emit a WebSocket event to all subscribers of this analysis."""
+    """Emit a WebSocket event to all subscribers of this analysis.
+
+    Always records the event in the replay buffer so clients that connect
+    after the pipeline already started still see prior stages.
+    Never raises — broadcast failures shouldn't break the pipeline.
+    """
     from app.api.v1.ws import manager
 
     import asyncio
 
     event = {"stage": stage, "progress": progress, "message_fr": message_fr}
     try:
+        manager.record_event(analysis_id, event)
+    except Exception as exc:
+        logger.debug("ws_record_failed", extra={"err": str(exc)})
+
+    try:
         loop = asyncio.get_running_loop()
         loop.create_task(manager.broadcast(analysis_id, event))
     except RuntimeError:
+        # No running loop (sync call site) — replay buffer still has the event,
+        # so any client polling /api/v1/analyses/{id} will see fresh progress.
         pass
+    except Exception as exc:
+        logger.debug("ws_broadcast_failed", extra={"err": str(exc)})

@@ -1,0 +1,115 @@
+/* ============================================================
+   Toasts — bottom-right stack, glass, semantic colors
+   ============================================================ */
+.toast-root {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  pointer-events: none;
+  max-width: calc(100vw - 40px);
+}
+
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  max-width: 440px;
+  padding: 12px 14px 12px 14px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--color-border-strong, rgba(148, 163, 184, 0.20));
+  background: var(--color-bg-glass, rgba(17, 24, 39, 0.92));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  color: var(--color-text, #F9FAFB);
+  font-family: var(--font-sans, system-ui), sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: var(--shadow-lg, 0 12px 40px rgba(0, 0, 0, 0.45));
+  /* enter animation */
+  opacity: 0;
+  transform: translate3d(0, 12px, 0) scale(0.98);
+  transition:
+    opacity 220ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.toast.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+.toast.is-leaving {
+  opacity: 0;
+  transform: translate3d(40px, 0, 0) scale(0.96);
+}
+
+.toast__icon {
+  flex: 0 0 18px;
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.toast__icon svg { width: 18px; height: 18px; }
+
+.toast__msg {
+  flex: 1;
+  word-break: break-word;
+}
+
+.toast__action {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  opacity: 0.9;
+  transition: opacity 120ms, background 120ms;
+}
+.toast__action:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); }
+
+.toast__close {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted, #9CA3AF);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color 120ms, background 120ms;
+}
+.toast__close:hover { color: var(--color-text, #F9FAFB); background: rgba(255, 255, 255, 0.08); }
+
+/* ── Semantic accents ─────────────────────────────────────── */
+.toast--success { border-left: 3px solid var(--risk-faible, #22C55E); }
+.toast--success .toast__icon { color: var(--risk-faible, #22C55E); }
+
+.toast--error   { border-left: 3px solid var(--risk-critique, #EF4444); }
+.toast--error .toast__icon { color: var(--risk-critique, #EF4444); }
+
+.toast--warn    { border-left: 3px solid var(--risk-eleve, #F97316); }
+.toast--warn .toast__icon { color: var(--risk-eleve, #F97316); }
+
+.toast--info    { border-left: 3px solid var(--color-accent, #86BC25); }
+.toast--info .toast__icon { color: var(--color-accent, #86BC25); }
+
+@media (max-width: 600px) {
+  .toast-root { left: 12px; right: 12px; bottom: 12px; }
+  .toast { min-width: 0; max-width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { transition: opacity 100ms; }
+  .toast, .toast.is-visible, .toast.is-leaving { transform: none; }
+}

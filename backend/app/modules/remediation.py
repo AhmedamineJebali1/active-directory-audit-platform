@@ -83,7 +83,7 @@ _EDGE_GUIDANCE: dict[str, dict] = {
             '# Set-Acl -Path "AD:\\$targetDn" -AclObject $acl'
         ),
     },
-    "WriteDACL": {
+    "WriteDacl": {
         "why": (
             "**{source_label}** peut modifier les permissions de **{target_label}**. "
             "Il peut donc s'octroyer GenericAll, puis exploiter cet objet à sa guise. "
@@ -97,7 +97,7 @@ _EDGE_GUIDANCE: dict[str, dict] = {
             ),
             (
                 "Restreindre",
-                "Vérifier que l'ACE WriteDACL n'est pas héritée d'une OU parente. "
+                "Vérifier que l'ACE WriteDacl n'est pas héritée d'une OU parente. "
                 "Si oui, l'éliminer à la racine plutôt qu'au niveau de l'objet.",
             ),
             (
@@ -108,7 +108,7 @@ _EDGE_GUIDANCE: dict[str, dict] = {
             ),
             (
                 "Supprimer",
-                "Retirer l'ACE WriteDACL après validation. Conserver uniquement les "
+                "Retirer l'ACE WriteDacl après validation. Conserver uniquement les "
                 "ACE strictement nécessaires (principe du moindre privilège).",
             ),
         ],

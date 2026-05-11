@@ -7,6 +7,7 @@ function dashboardApp() {
     engagements: [],
     archived: [],
     stats: {},
+    llmInfo: null,    // {provider, model, has_api_key} from /llm/config
     showModal: false,
     saving: false,
     form: { client_name: '', code: '', description: '' },
@@ -38,9 +39,22 @@ function dashboardApp() {
       this.user = await auth.requireAuth();
       if (!this.user) return;
       auth.renderNav('dashboard');
+      if (window.statusChips) statusChips.attach({ wsBound: false });
       document.addEventListener('click', (e) => this._closeMenuOnOutsideClick(e));
-      await Promise.all([this.fetchEngagements(), this.fetchStats()]);
+      await Promise.all([this.fetchEngagements(), this.fetchStats(), this.fetchLLMInfo()]);
       this.loading = false;
+    },
+
+    async fetchLLMInfo() {
+      try {
+        this.llmInfo = await api.getLLMConfig();
+      } catch (_) {
+        this.llmInfo = null;
+      }
+    },
+
+    isMockMode() {
+      return this.llmInfo && this.llmInfo.provider === 'mock';
     },
 
     async fetchEngagements() {
@@ -334,9 +348,11 @@ function dashboardApp() {
         this.engagements.unshift(created);
         await this.fetchStats();
         this.showModal = false;
+        if (window.toast) toast.success(`Mission "${created.code}" créée`);
         location.href = `/engagement.html?id=${created.id}`;
       } catch (e) {
         this.formError = e.message;
+        if (window.toast) toast.error(e.message);
       } finally {
         this.saving = false;
       }

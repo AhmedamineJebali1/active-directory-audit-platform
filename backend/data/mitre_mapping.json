@@ -44,7 +44,7 @@
     {"id": "T1098", "name": "Account Manipulation", "tactic": "Persistence", "url": "https://attack.mitre.org/techniques/T1098/"},
     {"id": "T1222.001", "name": "Windows File and Directory Permissions Modification", "tactic": "Defense Evasion", "url": "https://attack.mitre.org/techniques/T1222/001/"}
   ],
-  "WriteDACL": [
+  "WriteDacl": [
     {"id": "T1222.001", "name": "Windows File and Directory Permissions Modification", "tactic": "Defense Evasion", "url": "https://attack.mitre.org/techniques/T1222/001/"},
     {"id": "T1098", "name": "Account Manipulation", "tactic": "Persistence", "url": "https://attack.mitre.org/techniques/T1098/"}
   ],
