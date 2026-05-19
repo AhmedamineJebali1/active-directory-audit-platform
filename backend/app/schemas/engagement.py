@@ -46,6 +46,10 @@ class EngagementResponse(BaseModel):
     created_by: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    # Per-engagement role injected by require_engagement_access() — may be None
+    # when the response is built without going through the access dependency
+    # (e.g. list endpoint that does its own visibility filtering).
+    user_role: str | None = None
 
     model_config = {"from_attributes": True}
 

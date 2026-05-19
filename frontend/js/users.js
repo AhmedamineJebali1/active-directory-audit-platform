@@ -14,6 +14,14 @@ function usersApp() {
     inviteError: null,
     invite: { email: '', full_name: '', role: 'auditor', password: '' },
 
+    // Delete modal state
+    deleteTarget: null,
+    deleteConfirmEmail: '',
+    deleteError: null,
+    deleting: false,
+    deleteImpact: null,
+    deleteImpactLoading: false,
+
     async init() {
       const u = await auth.requireAuth();
       if (!u) return;
@@ -93,6 +101,54 @@ function usersApp() {
         if (window.toast) toast.success(`Sessions de ${u.email} révoquées`);
       } catch (e) {
         if (window.toast) toast.error(e.message);
+      }
+    },
+
+    openDelete(u) {
+      this.deleteTarget = u;
+      this.deleteConfirmEmail = '';
+      this.deleteError = null;
+      this.deleteImpact = null;
+      this.deleteImpactLoading = true;
+      this._authFetch(`/api/v1/admin/users/${u.id}/impact`)
+        .then(data => { this.deleteImpact = data; })
+        .catch(() => { this.deleteImpact = { missions_member: 0, missions_lead: 0, missions_created: 0 }; })
+        .finally(() => { this.deleteImpactLoading = false; });
+    },
+
+    closeDelete() {
+      if (this.deleting) return;
+      this.deleteTarget = null;
+    },
+
+    get deleteEmailMatches() {
+      return this.deleteTarget &&
+        this.deleteConfirmEmail.trim().toLowerCase() === this.deleteTarget.email.toLowerCase();
+    },
+
+    async confirmDelete() {
+      if (!this.deleteEmailMatches || this.deleting) return;
+      this.deleting = true;
+      this.deleteError = null;
+      const targetId = this.deleteTarget.id;
+      const targetEmail = this.deleteTarget.email;
+      try {
+        const res = await fetch(`/api/v1/admin/users/${targetId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + api.getAccessToken() },
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.detail || 'Erreur ' + res.status);
+        }
+        this.deleteTarget = null;
+        this.users = this.users.filter(u => u.id !== targetId);
+        this.total = Math.max(0, this.total - 1);
+        if (window.toast) toast.success(`${targetEmail} supprimé définitivement`);
+      } catch (e) {
+        this.deleteError = e.message;
+      } finally {
+        this.deleting = false;
       }
     },
 

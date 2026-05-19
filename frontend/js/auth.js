@@ -44,6 +44,7 @@
       out:   '<svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     };
 
+    const isManager = role === 'manager';
     const navHtml = `
       <aside class="sidebar" id="app-sidebar">
         <a class="sidebar__brand" href="/dashboard.html">
@@ -62,8 +63,8 @@
           <a class="sidebar__item ${activeKey === 'audit' ? 'is-active' : ''}" href="/audit.html">
             <span class="sidebar__icon">${ico.audit}</span>
             <span class="sidebar__label">Journal d'audit</span>
-          </a>
-          <a class="sidebar__item ${activeKey === 'settings' ? 'is-active' : ''}" href="/settings.html">
+          </a>` : ''}
+          ${(isAdmin || isManager) ? `<a class="sidebar__item ${activeKey === 'settings' ? 'is-active' : ''}" href="/settings.html">
             <span class="sidebar__icon">${ico.cog}</span>
             <span class="sidebar__label">Configuration LLM</span>
           </a>` : ''}

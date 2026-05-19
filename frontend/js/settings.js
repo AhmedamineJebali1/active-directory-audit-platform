@@ -20,6 +20,11 @@ function settingsApp() {
     async init() {
       this.user = await auth.requireAuth();
       if (!this.user) return;
+      // Settings page is restricted to admin and manager.
+      if (!['admin', 'manager'].includes(this.user.role)) {
+        location.href = '/dashboard.html';
+        return;
+      }
       auth.renderNav('settings');
       if (window.statusChips) statusChips.attach({ wsBound: false });
       await Promise.all([this.loadProviders(), this.loadConfig()]);

@@ -122,6 +122,7 @@ async def list_users(
                 "is_active": u.is_active,
                 "created_at": u.created_at.isoformat(),
                 "updated_at": u.updated_at.isoformat() if u.updated_at else None,
+                "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
             }
             for u in rows
         ],
@@ -197,3 +198,109 @@ async def enable_user(
     user.is_active = True
     await db.commit()
     logger.info("user_enabled", extra={"id": str(user_id), "by": str(current_user.id)})
+
+
+@router.get("/users/{user_id}/impact")
+async def get_user_delete_impact(
+    user_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _=Depends(require_role("admin")),
+) -> dict[str, Any]:
+    """Return the impact of permanently deleting a user:
+    how many missions they belong to, lead, or created.
+    """
+    from app.models.engagement import Engagement
+    from app.models.engagement_member import EngagementMember
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise NotFoundError("Utilisateur")
+
+    missions_member = (
+        await db.execute(
+            select(func.count()).select_from(EngagementMember)
+            .where(EngagementMember.user_id == user_id)
+        )
+    ).scalar_one()
+
+    missions_lead = (
+        await db.execute(
+            select(func.count()).select_from(EngagementMember)
+            .where(
+                EngagementMember.user_id == user_id,
+                EngagementMember.role_on_engagement == "lead",
+            )
+        )
+    ).scalar_one()
+
+    missions_created = (
+        await db.execute(
+            select(func.count()).select_from(Engagement)
+            .where(Engagement.created_by == user_id)
+        )
+    ).scalar_one()
+
+    return {
+        "user_id": str(user_id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "role": user.role,
+        "missions_member": missions_member,
+        "missions_lead": missions_lead,
+        "missions_created": missions_created,
+    }
+
+
+@router.delete("/users/{user_id}", status_code=204)
+async def delete_user(
+    user_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user=Depends(require_role("admin")),
+):
+    """Permanently delete a user account.
+
+    Cascade behaviour:
+    - engagement_members rows are deleted via DB CASCADE (ondelete=CASCADE on user_id FK).
+    - Engagements the user created are re-attributed to the deleting admin so the FK
+      constraint is satisfied and missions are not lost.
+    - Audit logs are preserved for traceability (user_id becomes orphaned but that is
+      acceptable for historical records).
+    - The user themselves cannot be deleted (use deactivate for self-management).
+    - Admin accounts cannot be deleted; deactivate them instead.
+    """
+    from sqlalchemy import update as sa_update
+    from app.models.engagement import Engagement
+
+    if user_id == current_user.id:
+        raise ValidationError("Vous ne pouvez pas supprimer votre propre compte.")
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise NotFoundError("Utilisateur")
+
+    if user.role == "admin":
+        raise ValidationError(
+            "Les comptes administrateurs ne peuvent pas être supprimés. "
+            "Désactivez le compte ou rétrogradez-le d'abord."
+        )
+
+    # Re-attribute missions created by this user to the deleting admin.
+    # The FK engagements.created_by is NOT NULL so we cannot nullify it.
+    await db.execute(
+        sa_update(Engagement)
+        .where(Engagement.created_by == user_id)
+        .values(created_by=current_user.id)
+    )
+
+    # Hard-delete the user. The DB cascades handle:
+    #   engagement_members.user_id  → DELETE CASCADE
+    #   engagement_members.added_by → SET NULL
+    await db.delete(user)
+    await db.commit()
+
+    logger.info(
+        "user_permanently_deleted",
+        extra={"deleted_user": str(user_id), "by_admin": str(current_user.id)},
+    )

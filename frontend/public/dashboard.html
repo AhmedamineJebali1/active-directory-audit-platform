@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="/css/redesign.css?v=11" />
   <link rel="stylesheet" href="/css/components.css?v=11" />
   <link rel="stylesheet" href="/css/toast.css?v=11" />
-  <script src="/js/api.js?v=14"></script>
-  <script src="/js/auth.js?v=11"></script>
+  <script src="/js/api.js?v=15"></script>
+  <script src="/js/auth.js?v=12"></script>
   <script src="/js/toast.js?v=11"></script>
   <script src="/js/status_chips.js?v=11"></script>
-  <script src="/js/dashboard.js?v=11"></script>
+  <script src="/js/dashboard.js?v=12"></script>
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
 
   <style>
@@ -315,7 +315,9 @@
                 <div class="kanban__empty">Aucune mission en attente</div>
               </template>
               <template x-for="e in byStatus('draft')" :key="e.id">
-                <div class="mission-card" data-state="draft" draggable="true"
+                <div class="mission-card" data-state="draft"
+                     :draggable="isDraggable(e) ? 'true' : 'false'"
+                     :style="isDraggable(e) ? '' : 'cursor:default;'"
                      @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
                      :class="draggingId === e.id ? 'is-dragging' : ''">
                   <div class="card-menu" x-show="canManage()">
@@ -337,7 +339,14 @@
                     </div>
                   </div>
                   <div class="mc__top">
-                    <div class="mc__code" x-text="e.code"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
+                      <div class="mc__code" x-text="e.code" style="margin-bottom:0;"></div>
+                      <template x-if="engRoleLabel(e)">
+                        <span style="font-size:9px;font-weight:700;letter-spacing:0.05em;padding:2px 7px;border-radius:3px;flex-shrink:0;"
+                              :style="e.user_role==='lead'?'background:rgba(134,188,37,0.12);color:var(--color-accent);':e.user_role==='contributor'?'background:rgba(74,158,255,0.12);color:#4A9EFF;':'background:rgba(255,255,255,0.05);color:var(--color-stone);'"
+                              x-text="engRoleLabel(e)"></span>
+                      </template>
+                    </div>
                     <div class="mc__client" x-text="e.client_name"></div>
                     <div class="mc__desc" x-text="e.description || 'Aucune description'"></div>
                   </div>
@@ -351,7 +360,7 @@
                   </div>
                   <div class="mc__actions">
                     <a class="btn-row btn-row--open" :href="'/engagement.html?id='+e.id">Ouvrir</a>
-                    <button class="btn-row btn-row--start" @click.stop="changeStatus(e,'in_progress')">Démarrer</button>
+                    <button class="btn-row btn-row--start" x-show="canManage()" @click.stop="changeStatus(e,'in_progress')">Démarrer</button>
                   </div>
                 </div>
               </template>
@@ -376,7 +385,9 @@
                 <div class="kanban__empty">Aucune mission en cours</div>
               </template>
               <template x-for="e in byStatus('in_progress')" :key="e.id">
-                <div class="mission-card" data-state="in_progress" draggable="true"
+                <div class="mission-card" data-state="in_progress"
+                     :draggable="isDraggable(e) ? 'true' : 'false'"
+                     :style="isDraggable(e) ? '' : 'cursor:default;'"
                      @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
                      :class="draggingId === e.id ? 'is-dragging' : ''">
                   <div class="card-menu" x-show="canManage()">
@@ -398,7 +409,14 @@
                     </div>
                   </div>
                   <div class="mc__top">
-                    <div class="mc__code" x-text="e.code"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
+                      <div class="mc__code" x-text="e.code" style="margin-bottom:0;"></div>
+                      <template x-if="engRoleLabel(e)">
+                        <span style="font-size:9px;font-weight:700;letter-spacing:0.05em;padding:2px 7px;border-radius:3px;flex-shrink:0;"
+                              :style="e.user_role==='lead'?'background:rgba(134,188,37,0.12);color:var(--color-accent);':e.user_role==='contributor'?'background:rgba(74,158,255,0.12);color:#4A9EFF;':'background:rgba(255,255,255,0.05);color:var(--color-stone);'"
+                              x-text="engRoleLabel(e)"></span>
+                      </template>
+                    </div>
                     <div class="mc__client" x-text="e.client_name"></div>
                     <div class="mc__desc" x-text="e.description || 'Aucune description'"></div>
                   </div>
@@ -422,8 +440,8 @@
                   </div>
                   <div class="mc__actions">
                     <a class="btn-row btn-row--open" :href="'/engagement.html?id='+e.id">Ouvrir</a>
-                    <button class="btn-row btn-row--finish" @click.stop="changeStatus(e,'completed')">Terminer</button>
-                    <button class="btn-row btn-row--pause"  @click.stop="changeStatus(e,'draft')">Pause</button>
+                    <button class="btn-row btn-row--finish" x-show="canManage()" @click.stop="changeStatus(e,'completed')">Terminer</button>
+                    <button class="btn-row btn-row--pause" x-show="canManage()" @click.stop="changeStatus(e,'draft')">Pause</button>
                   </div>
                 </div>
               </template>
@@ -448,7 +466,9 @@
                 <div class="kanban__empty">Aucune mission terminée</div>
               </template>
               <template x-for="e in byStatus('completed')" :key="e.id">
-                <div class="mission-card" data-state="completed" draggable="true"
+                <div class="mission-card" data-state="completed"
+                     :draggable="isDraggable(e) ? 'true' : 'false'"
+                     :style="isDraggable(e) ? '' : 'cursor:default;'"
                      @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
                      :class="draggingId === e.id ? 'is-dragging' : ''">
                   <div class="card-menu" x-show="canManage()">
@@ -470,7 +490,14 @@
                     </div>
                   </div>
                   <div class="mc__top">
-                    <div class="mc__code" x-text="e.code"></div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">
+                      <div class="mc__code" x-text="e.code" style="margin-bottom:0;"></div>
+                      <template x-if="engRoleLabel(e)">
+                        <span style="font-size:9px;font-weight:700;letter-spacing:0.05em;padding:2px 7px;border-radius:3px;flex-shrink:0;"
+                              :style="e.user_role==='lead'?'background:rgba(134,188,37,0.12);color:var(--color-accent);':e.user_role==='contributor'?'background:rgba(74,158,255,0.12);color:#4A9EFF;':'background:rgba(255,255,255,0.05);color:var(--color-stone);'"
+                              x-text="engRoleLabel(e)"></span>
+                      </template>
+                    </div>
                     <div class="mc__client" x-text="e.client_name"></div>
                     <div class="mc__desc" x-text="e.description || 'Aucune description'"></div>
                   </div>
@@ -485,7 +512,7 @@
                   </div>
                   <div class="mc__actions">
                     <a class="btn-row btn-row--open" :href="'/engagement.html?id='+e.id">Ouvrir</a>
-                    <button class="btn-row btn-row--resume" @click.stop="changeStatus(e,'in_progress')">Reprendre</button>
+                    <button class="btn-row btn-row--resume" x-show="canManage()" @click.stop="changeStatus(e,'in_progress')">Reprendre</button>
                   </div>
                 </div>
               </template>

@@ -13,13 +13,13 @@
   <link rel="stylesheet" href="/css/components.css?v=11" />
   <link rel="stylesheet" href="/css/dashboard.css?v=11" />
   <link rel="stylesheet" href="/css/toast.css?v=11" />
-  <script src="/js/api.js?v=14"></script>
-  <script src="/js/auth.js?v=11"></script>
+  <script src="/js/api.js?v=15"></script>
+  <script src="/js/auth.js?v=12"></script>
   <script src="/js/toast.js?v=11"></script>
   <script src="/js/status_chips.js?v=11"></script>
   <script src="/js/ws_client.js?v=11"></script>
   <script src="/js/upload.js?v=15"></script>
-  <script src="/js/engagement.js?v=16"></script>
+  <script src="/js/engagement.js?v=19"></script>
   <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
 
@@ -356,8 +356,28 @@
               <h1 class="page-title" x-text="engagement.client_name"></h1>
               <p class="page-subtitle" x-text="engagement.description || ''"></p>
             </div>
-            <span class="status-pill" :class="'status-'+engagement.status" x-text="statusLabel(engagement.status)" style="margin-top:6px;"></span>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap;">
+              <span class="status-pill" :class="'status-'+engagement.status" x-text="statusLabel(engagement.status)"></span>
+              <!-- Per-engagement role chip -->
+              <template x-if="engagement.user_role">
+                <span :style="'display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:600;letter-spacing:0.04em;background:' + (engagement.user_role==='lead'?'rgba(134,188,37,0.12)':engagement.user_role==='contributor'?'rgba(74,158,255,0.12)':'rgba(255,255,255,0.06)') + ';color:' + (engagement.user_role==='lead'?'var(--color-accent)':engagement.user_role==='contributor'?'#4A9EFF':'var(--color-stone)')">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="3" r="2" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 9c0-1.9 1.6-3 3.5-3s3.5 1.1 3.5 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                  <span x-text="engRoleLabel()"></span>
+                </span>
+              </template>
+            </div>
           </div>
+
+          <!-- Read-only banner for viewer-only users -->
+          <template x-if="isReadOnly()">
+            <div style="margin-top:16px;padding:10px 16px;background:rgba(255,255,255,0.04);border:1px solid var(--color-border);border-radius:6px;display:flex;align-items:center;gap:10px;">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="color:var(--color-stone);flex-shrink:0;"><rect x="3" y="6" width="8" height="6" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 6V4.5a2.5 2.5 0 1 1 5 0V6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+              <span style="font-size:12px;color:var(--color-stone);">
+                <strong style="color:var(--color-text);">Accès en lecture seule.</strong>
+                Vous pouvez consulter les analyses et chemins d'attaque, mais pas lancer de nouvelles analyses ni modifier cette mission. Contactez le lead ou un administrateur pour obtenir un accès contributeur.
+              </span>
+            </div>
+          </template>
 
           <!-- Stats row -->
           <template x-if="stats">
@@ -669,9 +689,10 @@
 
               </div>
 
-              <!-- Sidebar: analysis history -->
+              <!-- Sidebar: analysis history + notes + members -->
               <aside>
-                <div class="card">
+                <!-- Analysis history -->
+                <div class="card" style="margin-bottom:16px;">
                   <div class="card-header">
                     <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);">Historique</h3>
                   </div>
@@ -695,6 +716,79 @@
                     </template>
                   </div>
                 </div>
+
+                <!-- Notes card (contributor+) -->
+                <div class="card" style="margin-bottom:16px;">
+                  <div class="card-header">
+                    <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);">Notes</h3>
+                    <template x-if="canEditNotes() && !notesEditing">
+                      <button class="btn btn-ghost btn-sm" @click="notesStartEdit()" style="font-size:11px;">Modifier</button>
+                    </template>
+                    <template x-if="!canEditNotes()">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" title="Lecture seule" style="color:var(--color-stone);opacity:0.5;"><rect x="2" y="5" width="8" height="6" rx="1" stroke="currentColor" stroke-width="1.2"/><path d="M4 5V3.5a2 2 0 1 1 4 0V5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                    </template>
+                  </div>
+                  <div class="card-body" style="padding:14px 16px;">
+                    <template x-if="!notesEditing">
+                      <div style="font-size:12px;color:var(--color-stone);line-height:1.6;min-height:40px;white-space:pre-wrap;word-break:break-word;"
+                           x-text="notes || (canEditNotes() ? 'Cliquez sur Modifier pour ajouter des notes…' : 'Aucune note.')"></div>
+                    </template>
+                    <template x-if="notesEditing">
+                      <div>
+                        <textarea style="width:100%;min-height:90px;resize:vertical;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:4px;padding:8px;font-size:12px;color:var(--color-text);font-family:var(--font-sans);line-height:1.6;box-sizing:border-box;"
+                          x-model="notesDraft" placeholder="Notes internes sur cette mission…"></textarea>
+                        <div style="display:flex;gap:8px;margin-top:8px;">
+                          <button class="btn btn-primary btn-sm" @click="notesSave()" :disabled="notesSaving">
+                            <span x-text="notesSaving ? 'Enregistrement…' : 'Enregistrer'"></span>
+                          </button>
+                          <button class="btn btn-ghost btn-sm" @click="notesCancelEdit()">Annuler</button>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+
+                <!-- Members card (lead/admin only) -->
+                <template x-if="canManageMembers()">
+                  <div class="card">
+                    <div class="card-header">
+                      <h3 style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--color-stone);">Membres</h3>
+                      <button class="btn btn-ghost btn-sm" @click="showAddMember=!showAddMember" style="font-size:11px;">+ Ajouter</button>
+                    </div>
+                    <div class="card-body" style="padding:8px 0;">
+                      <!-- Add form -->
+                      <template x-if="showAddMember">
+                        <div style="padding:10px 16px 4px;border-bottom:1px solid var(--color-border);margin-bottom:4px;">
+                          <input type="email" class="form-control" x-model="addMemberEmail" placeholder="Email de l'utilisateur" style="font-size:12px;margin-bottom:6px;" />
+                          <select class="form-control" x-model="addMemberRole" style="font-size:12px;margin-bottom:8px;">
+                            <option value="viewer">Lecteur — consulte uniquement</option>
+                            <option value="contributor">Contributeur — peut lancer des analyses</option>
+                            <option value="lead">Lead — gère les membres et la mission</option>
+                          </select>
+                          <div style="display:flex;gap:8px;">
+                            <button class="btn btn-primary btn-sm" @click="addMember()" :disabled="addMemberAdding || !addMemberEmail.trim()" style="font-size:11px;">
+                              <span x-text="addMemberAdding ? 'Ajout…' : 'Ajouter'"></span>
+                            </button>
+                            <button class="btn btn-ghost btn-sm" @click="showAddMember=false;addMemberEmail=''" style="font-size:11px;">Annuler</button>
+                          </div>
+                          <div x-show="addMemberError" x-text="addMemberError" style="margin-top:6px;font-size:11px;color:var(--risk-critique);"></div>
+                        </div>
+                      </template>
+                      <!-- Member list -->
+                      <template x-if="membersLoading"><div style="padding:16px;text-align:center;"><span class="spinner" style="width:14px;height:14px;border-width:2px;"></span></div></template>
+                      <template x-for="m in members" :key="m.user_id">
+                        <div style="display:flex;align-items:center;gap:10px;padding:8px 16px;">
+                          <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--color-text);flex-shrink:0;" x-text="(m.full_name||m.email||'?').slice(0,2).toUpperCase()"></div>
+                          <div style="flex:1;min-width:0;">
+                            <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" x-text="m.full_name||m.email"></div>
+                            <div style="font-size:10px;color:var(--color-stone);" x-text="memberRoleLabel(m.role_on_engagement)+' · '+m.global_role"></div>
+                          </div>
+                          <button class="btn btn-ghost btn-sm" @click="removeMember(m.user_id)" style="font-size:10px;padding:2px 6px;color:var(--risk-eleve);" title="Retirer">✕</button>
+                        </div>
+                      </template>
+                    </div>
+                  </div>
+                </template>
               </aside>
             </div>
           </div>
@@ -931,8 +1025,11 @@
               </div>
             </template>
 
-            <!-- ── MITRE matrix tab ────────────────────────── -->
-            <div x-show="activeTab === 'mitre'">
+          </div>
+          <!-- /paths tab -->
+
+          <!-- ═══ TAB: MATRICE MITRE ═════════════════════════ -->
+          <div x-show="activeTab === 'mitre'" x-cloak>
               <div class="card">
                 <div class="card-header">
                   <div>
@@ -941,56 +1038,70 @@
                       Couverture par tactique × technique. L'intensité de la couleur reflète le nombre de chemins concernés.
                     </p>
                   </div>
-                  <template x-if="mitreCoverage">
-                    <span style="font-size:12px;color:var(--color-stone);">
-                      <strong style="color:var(--color-text);" x-text="mitreCoverage.techniques.length"></strong> techniques sur
-                      <strong style="color:var(--color-text);" x-text="Object.keys(mitreCoverage.count_by_tactic||{}).length"></strong> tactiques
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <span x-show="mitreCoverage && mitreColumns.length > 0" style="font-size:12px;color:var(--color-stone);">
+                      <strong style="color:var(--color-text);" x-text="mitreCoverage ? mitreCoverage.techniques.length : 0"></strong> techniques ·
+                      <strong style="color:var(--color-text);" x-text="mitreColumns.length"></strong> tactiques
                     </span>
-                  </template>
+                    <button x-show="activeAnalysis && activeAnalysis.status === 'completed' && !mitreLoading"
+                            class="btn btn-ghost btn-sm"
+                            @click="mitreCoverage=null;mitreColumns=[];loadMitre(activeAnalysis.id)"
+                            title="Recharger la matrice" style="font-size:11px;padding:4px 10px;">
+                      ↺ Actualiser
+                    </button>
+                  </div>
                 </div>
                 <div class="card-body">
-                  <template x-if="mitreLoading">
-                    <div class="empty-state"><span class="spinner"></span></div>
-                  </template>
-                  <template x-if="!mitreLoading && (!mitreCoverage || mitreCoverage.techniques.length === 0)">
-                    <div style="padding:24px;text-align:center;color:var(--color-stone);font-size:13px;">
-                      Aucune technique MITRE détectée pour cette analyse.
-                    </div>
-                  </template>
-                  <!-- Matrix iterates a PRE-COMPUTED list (engagement.js builds
-                       `mitreColumns` after loading /mitre). This sidesteps a
-                       nested-x-for+x-show Alpine quirk that left the matrix
-                       empty even with valid data. -->
-                  <template x-if="!mitreLoading && mitreColumns.length > 0">
-                    <div class="mitre-matrix">
-                      <template x-for="col in mitreColumns" :key="col.id || col.name">
-                        <div class="mitre-col">
-                          <div class="mitre-col__head">
-                            <div class="mitre-col__name" x-text="col.name"></div>
-                            <div class="mitre-col__count" x-text="col.techniques.length + ' tech.'"></div>
-                          </div>
-                          <div class="mitre-col__cells">
-                            <template x-for="t in col.techniques" :key="t.technique_id">
-                              <a class="mitre-cell"
-                                 :class="'mitre-cell--' + mitreCellHeat(t.count || 1)"
-                                 :href="t.url" target="_blank" rel="noopener noreferrer"
-                                 :title="t.technique_name + ' (' + (t.count || 0) + ' chemins)'">
-                                <span class="mitre-cell__id" x-text="t.technique_id"></span>
-                                <span class="mitre-cell__name" x-text="t.technique_name"></span>
-                                <span class="mitre-cell__count" x-text="t.count || ''"></span>
-                              </a>
-                            </template>
-                          </div>
+                  <!-- Loading spinner -->
+                  <div x-show="mitreLoading" style="padding:48px;text-align:center;">
+                    <span class="spinner" style="width:24px;height:24px;border-width:2px;display:inline-block;"></span>
+                    <p style="margin-top:12px;font-size:13px;color:var(--color-stone);">Chargement de la matrice MITRE…</p>
+                  </div>
+                  <!-- No completed analysis -->
+                  <div x-show="!mitreLoading && (!activeAnalysis || activeAnalysis.status !== 'completed')"
+                       style="padding:48px;text-align:center;color:var(--color-stone);font-size:13px;">
+                    Lancez une analyse pour voir la couverture MITRE ATT&amp;CK.
+                  </div>
+                  <!-- Completed but no techniques loaded yet -->
+                  <div x-show="!mitreLoading && activeAnalysis && activeAnalysis.status === 'completed' && mitreColumns.length === 0"
+                       style="padding:40px;text-align:center;">
+                    <p style="color:var(--color-stone);font-size:13px;margin-bottom:16px;">
+                      Aucune technique MITRE détectée — ou les données n'ont pas encore été chargées.
+                    </p>
+                    <button class="btn btn-ghost btn-sm"
+                            @click="mitreCoverage=null;mitreColumns=[];loadMitre(activeAnalysis.id)"
+                            style="font-size:12px;">
+                      Charger la matrice
+                    </button>
+                  </div>
+                  <!-- The matrix grid -->
+                  <div x-show="!mitreLoading && mitreColumns.length > 0" class="mitre-matrix">
+                    <template x-for="col in mitreColumns" :key="col.id || col.name">
+                      <div class="mitre-col">
+                        <div class="mitre-col__head">
+                          <div class="mitre-col__name" x-text="col.name"></div>
+                          <div class="mitre-col__count" x-text="col.techniques.length + ' technique' + (col.techniques.length > 1 ? 's' : '')"></div>
                         </div>
-                      </template>
-                    </div>
-                  </template>
+                        <div class="mitre-col__cells">
+                          <template x-for="t in col.techniques" :key="t.technique_id">
+                            <a class="mitre-cell"
+                               :class="'mitre-cell--' + mitreCellHeat(t.count || 1)"
+                               :href="t.url" target="_blank" rel="noopener noreferrer"
+                               :title="t.technique_name + ' — ' + (t.count || 0) + ' chemin(s) concerné(s)'">
+                              <span class="mitre-cell__id" x-text="t.technique_id"></span>
+                              <span class="mitre-cell__name" x-text="t.technique_name"></span>
+                              <span class="mitre-cell__count" x-show="t.count > 0" x-text="t.count"></span>
+                            </a>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
 
-          </div>
-          <!-- /tabs -->
+          <!-- /mitre tab -->
 
         </div><!-- /page-content -->
       </div>

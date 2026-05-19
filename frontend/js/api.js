@@ -256,11 +256,16 @@
       URL.revokeObjectURL(url);
     },
 
-    // engagement stats + notes
+    // engagement stats + notes + members
     getEngagementStats: () => request('GET', '/api/v1/engagements/stats/summary'),
     getNotes: (id) => request('GET', `/api/v1/engagements/${id}/notes`),
     updateNotes: (id, notes) =>
       request('PATCH', `/api/v1/engagements/${id}/notes`, { body: { notes } }),
+    getMembers: (id) => request('GET', `/api/v1/engagements/${id}/members`),
+    addMember: (id, payload) =>
+      request('POST', `/api/v1/engagements/${id}/members`, { body: payload }),
+    removeMember: (engagementId, userId) =>
+      request('DELETE', `/api/v1/engagements/${engagementId}/members/${userId}`, { raw: true }).then(() => null),
 
     // LLM settings
     getLLMConfig: () => request('GET', '/api/v1/llm/config'),

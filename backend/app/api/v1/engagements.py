@@ -66,6 +66,12 @@ async def list_engagements(
     )
     items = result.scalars().all()
 
+    # Stash per-engagement role so the frontend can gate actions correctly.
+    # Admins always get "lead"; others get their membership role.
+    from app.core.engagement_access import get_user_engagement_role
+    for eng in items:
+        eng.user_role = await get_user_engagement_role(db, current_user, eng.id)  # type: ignore[attr-defined]
+
     return EngagementListResponse(
         items=[EngagementResponse.model_validate(e) for e in items],
         total=total,

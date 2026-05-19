@@ -17,7 +17,7 @@
   <script src="/js/auth.js?v=12"></script>
   <script src="/js/toast.js?v=12"></script>
   <script src="/js/status_chips.js?v=12"></script>
-  <script src="/js/users.js?v=12"></script>
+  <script src="/js/users.js?v=13"></script>
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
   <style>
     .user-row { transition: background 120ms; }
@@ -176,19 +176,33 @@
                         </td>
                         <td style="font-size:11px;color:var(--color-text-muted);font-family:var(--font-mono);" x-text="formatDate(u.created_at)"></td>
                         <td style="font-size:11px;color:var(--color-text-muted);font-family:var(--font-mono);" x-text="formatDate(u.last_login_at) || 'jamais'"></td>
-                        <td style="text-align:right;white-space:nowrap;">
+                        <td style="text-align:right;white-space:nowrap;display:flex;gap:4px;justify-content:flex-end;align-items:center;">
                           <button class="btn btn-ghost btn-sm" @click="forceLogout(u)" :disabled="u.id === me.id"
-                                  title="Forcer la déconnexion de toutes ses sessions">
-                            Force logout
+                                  title="Invalider toutes les sessions actives" style="font-size:11px;">
+                            Déconnecter
                           </button>
                           <button x-show="u.is_active" class="btn btn-ghost btn-sm"
                                   @click="disable(u)" :disabled="u.id === me.id"
-                                  style="color:var(--risk-eleve);">
+                                  style="color:var(--risk-eleve);font-size:11px;">
                             Désactiver
                           </button>
                           <button x-show="!u.is_active" class="btn btn-ghost btn-sm"
-                                  @click="enable(u)" style="color:var(--color-accent);">
+                                  @click="enable(u)" style="color:var(--color-accent);font-size:11px;">
                             Réactiver
+                          </button>
+                          <!-- Delete: not shown for admins or self -->
+                          <button x-show="u.role !== 'admin' && u.id !== me.id"
+                                  class="btn btn-ghost btn-sm" @click="openDelete(u)"
+                                  title="Supprimer définitivement ce compte"
+                                  style="color:var(--risk-critique);font-size:11px;padding:4px 8px;">
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style="vertical-align:-1px;">
+                              <polyline points="2 3.5 11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                              <path d="M4.5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                              <rect x="2.5" y="3.5" width="8" height="7" rx="1" stroke="currentColor" stroke-width="1.3"/>
+                              <line x1="5" y1="5.5" x2="5" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                              <line x1="8" y1="5.5" x2="8" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+                            </svg>
+                            Supprimer
                           </button>
                         </td>
                       </tr>
@@ -242,6 +256,104 @@
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </template>
+
+        <!-- ── Delete confirmation modal ──────────────────────── -->
+        <template x-if="deleteTarget">
+          <div class="invite-modal" @click.self="closeDelete()">
+            <div class="invite-modal__inner" style="max-width:520px;">
+              <!-- Header -->
+              <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:20px;">
+                <div style="width:40px;height:40px;border-radius:50%;background:rgba(200,16,46,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" style="color:var(--risk-critique);">
+                    <path d="M9 2L1.5 15.5h15L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                    <line x1="9" y1="7" x2="9" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="9" cy="13.5" r="0.75" fill="currentColor"/>
+                  </svg>
+                </div>
+                <div>
+                  <h2 style="font-size:17px;font-weight:700;margin:0 0 4px;">Supprimer ce compte ?</h2>
+                  <p style="font-size:13px;color:var(--color-text-muted);margin:0;">
+                    Cette action est <strong style="color:var(--risk-critique);">irréversible</strong>. Le compte et ses accès seront définitivement supprimés.
+                  </p>
+                </div>
+              </div>
+
+              <!-- User identity -->
+              <div style="background:rgba(255,255,255,0.04);border:1px solid var(--color-border);border-radius:8px;padding:14px 16px;margin-bottom:16px;">
+                <div style="font-weight:600;font-size:14px;" x-text="deleteTarget.full_name"></div>
+                <div style="font-size:12px;font-family:var(--font-mono);color:var(--color-text-muted);margin-top:2px;" x-text="deleteTarget.email"></div>
+                <div style="margin-top:8px;">
+                  <span :class="'role-pill role-pill--' + deleteTarget.role" x-text="deleteTarget.role"></span>
+                </div>
+              </div>
+
+              <!-- Impact summary -->
+              <div style="margin-bottom:18px;">
+                <p style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--color-stone);margin-bottom:8px;">Impact de la suppression</p>
+                <template x-if="deleteImpactLoading">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--color-stone);">
+                    <span class="spinner" style="width:14px;height:14px;border-width:2px;"></span>
+                    Analyse en cours…
+                  </div>
+                </template>
+                <template x-if="!deleteImpactLoading && deleteImpact">
+                  <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid var(--color-border);">
+                      <span style="color:var(--color-text-muted);">Missions dont il est membre</span>
+                      <strong :style="deleteImpact.missions_member > 0 ? 'color:var(--risk-eleve)' : 'color:var(--color-stone)'" x-text="deleteImpact.missions_member"></strong>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid var(--color-border);">
+                      <span style="color:var(--color-text-muted);">Missions où il est lead</span>
+                      <strong :style="deleteImpact.missions_lead > 0 ? 'color:var(--risk-critique)' : 'color:var(--color-stone)'" x-text="deleteImpact.missions_lead"></strong>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:6px;border:1px solid var(--color-border);">
+                      <span style="color:var(--color-text-muted);">Missions qu'il a créées</span>
+                      <strong :style="deleteImpact.missions_created > 0 ? 'color:var(--risk-eleve)' : 'color:var(--color-stone)'" x-text="deleteImpact.missions_created"></strong>
+                    </div>
+                    <template x-if="deleteImpact.missions_lead > 0">
+                      <p style="font-size:12px;color:var(--risk-eleve);margin-top:4px;padding:0 4px;">
+                        ⚠ Les missions sans lead après suppression resteront accessibles aux membres existants. Pensez à nommer un nouveau lead avant de supprimer.
+                      </p>
+                    </template>
+                    <template x-if="deleteImpact.missions_created > 0">
+                      <p style="font-size:12px;color:var(--color-stone);margin-top:2px;padding:0 4px;">
+                        Les missions créées par cet utilisateur seront transférées à votre compte.
+                      </p>
+                    </template>
+                  </div>
+                </template>
+              </div>
+
+              <!-- Email confirmation -->
+              <div style="margin-bottom:16px;">
+                <label style="font-size:13px;font-weight:500;display:block;margin-bottom:6px;">
+                  Saisissez l'adresse email <strong x-text="deleteTarget.email"></strong> pour confirmer :
+                </label>
+                <input type="email" class="form-control"
+                       x-model="deleteConfirmEmail"
+                       placeholder="Email de confirmation"
+                       @keydown.enter.prevent="confirmDelete()"
+                       autocomplete="off"
+                       style="font-family:var(--font-mono);font-size:13px;" />
+              </div>
+
+              <!-- Error -->
+              <div x-show="deleteError" class="login-error" style="margin-bottom:12px;" x-text="deleteError"></div>
+
+              <!-- Actions -->
+              <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button class="btn-2026" @click="closeDelete()" :disabled="deleting">Annuler</button>
+                <button class="btn-2026" @click="confirmDelete()"
+                        :disabled="!deleteEmailMatches || deleting"
+                        style="background:var(--risk-critique);color:#fff;border-color:var(--risk-critique);"
+                        :style="!deleteEmailMatches ? 'opacity:0.4;cursor:not-allowed;' : ''">
+                  <span x-show="!deleting">Supprimer définitivement</span>
+                  <span x-show="deleting">Suppression…</span>
+                </button>
+              </div>
             </div>
           </div>
         </template>

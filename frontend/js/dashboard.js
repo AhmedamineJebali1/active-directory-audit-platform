@@ -237,7 +237,16 @@ function dashboardApp() {
 
     // ── Drag and drop ─────────────────────────────────────────────────────────
 
+    /** True if the user can drag this specific engagement card to change its status. */
+    canDragEngagement(engagement) {
+      if (!this.canManage()) return false;
+      // Viewer-only engagement members cannot change status even if global role is manager.
+      const rank = { lead: 3, contributor: 2, viewer: 1 };
+      return (rank[engagement.user_role] || 0) >= 2;
+    },
+
     onDragStart(event, engagement) {
+      if (!this.canDragEngagement(engagement)) { event.preventDefault(); return; }
       this.draggingId = engagement.id;
       this.draggingEngagement = engagement;
       event.dataTransfer.effectAllowed = 'move';
@@ -280,6 +289,17 @@ function dashboardApp() {
 
     canCreate() {
       return this.user && ['admin', 'manager'].includes(this.user.role);
+    },
+
+    /** French label for the user's per-engagement role. */
+    engRoleLabel(engagement) {
+      const labels = { lead: 'Lead', contributor: 'Contributeur', viewer: 'Lecteur' };
+      return labels[engagement.user_role] || '';
+    },
+
+    /** True if the engagement card should show as draggable (visual hint). */
+    isDraggable(engagement) {
+      return this.canDragEngagement(engagement);
     },
 
     fmtDate(iso) {

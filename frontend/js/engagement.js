@@ -28,6 +28,21 @@ function engagementApp() {
       use_ssl: false,
     },
 
+    // Notes state (inline — avoids needing x-data scoping in nested panels)
+    notes: '',
+    notesDraft: '',
+    notesEditing: false,
+    notesSaving: false,
+
+    // Members state
+    members: [],
+    membersLoading: false,
+    showAddMember: false,
+    addMemberEmail: '',
+    addMemberRole: 'contributor',
+    addMemberAdding: false,
+    addMemberError: '',
+
     // Tab state
     activeTab: 'analyse',
 
@@ -68,6 +83,9 @@ function engagementApp() {
         this.engagement = await api.getEngagement(id);
         await this.fetchAnalyses();
         api.getLLMConfig().then(c => { this.llmInfo = c; }).catch(() => {});
+        // Load notes and members in background (non-blocking)
+        this.loadNotes(id);
+        if (this.canManageMembers()) this.loadMembers(id);
       } catch (e) {
         this.error = e.message;
       } finally {
@@ -85,35 +103,30 @@ function engagementApp() {
       if (tab === 'graph' && this.activeAnalysis && this.activeAnalysis.status === 'completed') {
         this.$nextTick(() => this.loadGraph(this.activeAnalysis.id));
       }
+      // Always attempt loadMitre when switching to the MITRE tab — the guard inside
+      // loadMitre prevents duplicate requests when data is already loaded.
       if (tab === 'mitre' && this.activeAnalysis && this.activeAnalysis.status === 'completed') {
         this.$nextTick(() => this.loadMitre(this.activeAnalysis.id));
       }
     },
 
     async loadMitre(analysisId) {
-      if (this.mitreCoverage) return;
+      // Already loaded successfully.
+      if (this.mitreCoverage && this.mitreColumns.length > 0) return;
+      // Another request is already in-flight — don't fire a second one.
+      if (this.mitreLoading) return;
       this.mitreLoading = true;
       try {
         const cov = await api.getMitre(analysisId);
-        // Augment techniques with per-technique counts (the API returns
-        // top 10 with counts, plus the full list without counts).
         const countMap = {};
         (cov.top_techniques || []).forEach(t => { countMap[t.technique_id] = t.count; });
-        // Fall back: count by walking loaded paths if available
         if (Object.keys(countMap).length === 0 && this.paths.length) {
           this.paths.forEach(p => (p.mitre_techniques || []).forEach(mt => {
             countMap[mt.technique_id] = (countMap[mt.technique_id] || 0) + 1;
           }));
         }
         cov.techniques.forEach(t => { t.count = countMap[t.technique_id] || 0; });
-        this.mitreCoverage = cov;
 
-        // Pre-compute the matrix structure here, in one pass.
-        // This avoids relying on nested `<template x-for>` + `x-show` in Alpine,
-        // which was the root cause of the matrix appearing empty even with
-        // valid data: Alpine 3 evaluates nested x-for expressions during the
-        // outer iteration in a way that sometimes mis-binds the loop scope,
-        // so the inner filter sees `tactic.name` as undefined.
         const tacticOrder = this.mitreTactics();
         const cols = [];
         for (const tac of tacticOrder) {
@@ -123,8 +136,6 @@ function engagementApp() {
             .sort((a, b) => (b.count || 0) - (a.count || 0));
           if (techs.length > 0) cols.push({ ...tac, techniques: techs });
         }
-        // Append a catch-all for any tactic the backend uses but we didn't list,
-        // so we never silently swallow data.
         const known = new Set(tacticOrder.map(t => t.name.toLowerCase()));
         const orphans = {};
         (cov.techniques || []).forEach(t => {
@@ -136,7 +147,11 @@ function engagementApp() {
         Object.entries(orphans).forEach(([name, techs]) => {
           cols.push({ id: 'orphan-' + name, name, techniques: techs });
         });
+
+        // Set columns FIRST, then coverage — both become truthy in the same
+        // microtask so Alpine sees them together when it re-evaluates x-if.
         this.mitreColumns = cols;
+        this.mitreCoverage = cov;
 
         console.info('[MITRE] loaded', {
           analysisId, techniques: cov.techniques.length,
@@ -144,7 +159,7 @@ function engagementApp() {
         });
       } catch (e) {
         console.error('[MITRE] load failed', e);
-        if (window.toast) toast.error('MITRE : ' + e.message);
+        if (window.toast) toast.error('Matrice MITRE : ' + e.message);
       } finally {
         this.mitreLoading = false;
       }
@@ -219,6 +234,11 @@ function engagementApp() {
           this.progressStage = 'completed';
           this.progressMessage = 'Analyse terminée';
           this.loadPaths(last.id);
+          // Prefetch MITRE so the matrix tab is instant when clicked.
+          // This path is taken when navigating to a page that already has a
+          // completed analysis — attachToAnalysis() is NOT called here, so
+          // the prefetch must happen explicitly.
+          this.loadMitre(last.id);
         }
       }
     },
@@ -289,6 +309,7 @@ function engagementApp() {
             this.progressFailed = false;
             this.refreshAnalysisStatus(id);
             this.loadPaths(id);
+            this.loadMitre(id);
             if (window.toast) toast.success("Analyse terminée");
           }
           if (ev.stage === 'failed') {
@@ -319,6 +340,7 @@ function engagementApp() {
             const idx = this.analyses.findIndex(a => a.id === id);
             if (idx >= 0) this.analyses[idx] = fresh;
             this.loadPaths(id);
+            this.loadMitre(id);
           } else if (fresh.status === 'failed') {
             this._stopPoll();
             this.progressFailed = true;
@@ -777,8 +799,48 @@ function engagementApp() {
       } catch (e) { this.error = e.message; }
     },
 
+    // ── Role helpers ──────────────────────────────────────────────────────────
+
+    /** Per-engagement role rank: lead > contributor > viewer */
+    _engRoleRank() {
+      const r = this.engagement && this.engagement.user_role;
+      return { lead: 3, contributor: 2, viewer: 1 }[r] || 0;
+    },
+
+    /** True if the user can upload/trigger analyses on this engagement. */
     canUpload() {
-      return this.user && ['admin', 'manager', 'auditor'].includes(this.user.role);
+      // Global admin always can; otherwise needs contributor+ engagement role.
+      if (this.user && this.user.role === 'admin') return true;
+      return this._engRoleRank() >= 2;
+    },
+
+    /** True if the user can manage membership (add/remove members). */
+    canManageMembers() {
+      if (this.user && this.user.role === 'admin') return true;
+      return this._engRoleRank() >= 3; // lead only
+    },
+
+    /** True if the user can edit notes on this engagement. */
+    canEditNotes() {
+      if (this.user && this.user.role === 'admin') return true;
+      return this._engRoleRank() >= 2; // contributor+
+    },
+
+    /** True if the user can archive / change status of this engagement. */
+    canChangeStatus() {
+      if (this.user && ['admin', 'manager'].includes(this.user.role)) return true;
+      return this._engRoleRank() >= 3; // lead on the engagement
+    },
+
+    /** Read-only viewer: can see everything but change nothing. */
+    isReadOnly() {
+      return this._engRoleRank() === 1;
+    },
+
+    /** French label for the user's role on this engagement. */
+    engRoleLabel() {
+      const labels = { lead: 'Lead', contributor: 'Contributeur', viewer: 'Lecteur' };
+      return labels[this.engagement && this.engagement.user_role] || '';
     },
 
     resetForNewAnalysis() {
@@ -833,5 +895,91 @@ function engagementApp() {
         this.ldapCollecting = false;
       }
     },
+
+    // ── Notes ─────────────────────────────────────────────────────────────────
+
+    async loadNotes(id) {
+      try {
+        const data = await api.getNotes(id || this.engagement.id);
+        this.notes = data.notes || '';
+      } catch (_) {}
+    },
+
+    notesStartEdit() {
+      this.notesDraft = this.notes;
+      this.notesEditing = true;
+    },
+
+    notesCancelEdit() {
+      this.notesEditing = false;
+    },
+
+    async notesSave() {
+      const id = this.engagement && this.engagement.id;
+      if (!id) return;
+      this.notesSaving = true;
+      try {
+        const data = await api.updateNotes(id, this.notesDraft);
+        this.notes = data.notes || '';
+        this.notesEditing = false;
+        if (window.toast) toast.success('Notes enregistrées');
+      } catch (e) {
+        if (window.toast) toast.error('Erreur : ' + e.message);
+      } finally {
+        this.notesSaving = false;
+      }
+    },
+
+    // ── Members ────────────────────────────────────────────────────────────────
+
+    async loadMembers(id) {
+      this.membersLoading = true;
+      try {
+        const data = await api.getMembers(id || this.engagement.id);
+        this.members = data.items || [];
+      } catch (_) {} finally {
+        this.membersLoading = false;
+      }
+    },
+
+    memberRoleLabel(role) {
+      return { lead: 'Lead', contributor: 'Contributeur', viewer: 'Lecteur' }[role] || role;
+    },
+
+    async addMember() {
+      const id = this.engagement && this.engagement.id;
+      if (!id || !this.addMemberEmail.trim()) return;
+      this.addMemberAdding = true;
+      this.addMemberError = '';
+      try {
+        await api.addMember(id, {
+          email: this.addMemberEmail.trim(),
+          role_on_engagement: this.addMemberRole,
+        });
+        const data = await api.getMembers(id);
+        this.members = data.items || [];
+        this.showAddMember = false;
+        this.addMemberEmail = '';
+        this.addMemberRole = 'contributor';
+        if (window.toast) toast.success('Membre ajouté');
+      } catch (e) {
+        this.addMemberError = e.message;
+      } finally {
+        this.addMemberAdding = false;
+      }
+    },
+
+    async removeMember(userId) {
+      const id = this.engagement && this.engagement.id;
+      if (!id) return;
+      try {
+        await api.removeMember(id, userId);
+        this.members = this.members.filter(m => m.user_id !== userId);
+        if (window.toast) toast.info('Membre retiré');
+      } catch (e) {
+        if (window.toast) toast.error('Erreur : ' + e.message);
+      }
+    },
   };
 }
+
