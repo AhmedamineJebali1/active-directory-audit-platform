@@ -287,6 +287,47 @@ function dashboardApp() {
       return this.engagements.filter(e => e.status === status);
     },
 
+    // ── Posture charts (pure SVG, computed from existing stats) ───────────────
+
+    get postureTotal() {
+      return (this.stats.draft || 0) + (this.stats.in_progress || 0) + (this.stats.completed || 0);
+    },
+
+    /** Three donut segments (draft / in_progress / completed) as SVG stroke specs. */
+    donutSegments() {
+      const r = 52, circ = 2 * Math.PI * r;
+      const total = this.postureTotal || 1;
+      const defs = [
+        { key: 'completed',   val: this.stats.completed || 0,   color: '#86BC25' },
+        { key: 'in_progress', val: this.stats.in_progress || 0, color: '#4A9EFF' },
+        { key: 'draft',       val: this.stats.draft || 0,       color: '#6B7280' },
+      ];
+      let acc = 0;
+      return defs.map((s) => {
+        const len = (s.val / total) * circ;
+        const seg = { ...s, dash: `${len} ${circ - len}`, offset: -acc, circ };
+        acc += len;
+        return seg;
+      });
+    },
+
+    /** Share of analysed paths flagged critical, as a 0–100 percentage. */
+    get criticalRatio() {
+      const p = this.stats.total_paths || 0;
+      if (!p) return 0;
+      return Math.min(100, Math.round(((this.stats.total_critical || 0) / p) * 100));
+    },
+
+    /** Overall posture verdict derived from the critical ratio. */
+    get postureVerdict() {
+      const r = this.criticalRatio;
+      if ((this.stats.total_paths || 0) === 0) return { label: 'Aucune donnée', cls: 'none', color: '#6B7280' };
+      if (r >= 15) return { label: 'Critique', cls: 'critique', color: '#EF4444' };
+      if (r >= 7)  return { label: 'Élevé',    cls: 'eleve',    color: '#F97316' };
+      if (r >= 2)  return { label: 'Modéré',   cls: 'moyen',    color: '#EAB308' };
+      return { label: 'Maîtrisé', cls: 'faible', color: '#86BC25' };
+    },
+
     canCreate() {
       return this.user && ['admin', 'manager'].includes(this.user.role);
     },
