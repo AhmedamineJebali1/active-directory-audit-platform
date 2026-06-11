@@ -49,7 +49,7 @@
     const navHtml = `
       <aside class="sidebar" id="app-sidebar">
         <a class="sidebar__brand" href="/dashboard.html">
-          <span class="sidebar__logo">AD</span>
+          <img class="sidebar__logo-icon" src="/assets/img/logo-icon.png" alt="AD Audit AI" />
           <span class="sidebar__title">AD Audit AI</span>
         </a>
         <nav class="sidebar__nav">

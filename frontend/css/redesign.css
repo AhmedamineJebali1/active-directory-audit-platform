@@ -175,6 +175,15 @@ body.has-mesh-bg::before {
   font-size: 14px;
   box-shadow: 0 4px 12px rgba(134, 188, 37, 0.30);
 }
+/* Real brand mark (shield icon cropped from the logo) */
+.sidebar__logo-icon {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 2px 8px rgba(134, 188, 37, 0.25));
+}
 .sidebar__title {
   font-size: 14px;
   font-weight: 700;
