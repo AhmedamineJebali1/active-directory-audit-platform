@@ -65,7 +65,8 @@ body {
   color: white;
 }
 
-.cover-logo { margin-bottom: 20mm; }
+.cover-logo { margin-bottom: 18mm; }
+.cover-logo-img { width: 52mm; height: auto; display: block; }
 
 .cover-title {
   font-size: 28pt;
