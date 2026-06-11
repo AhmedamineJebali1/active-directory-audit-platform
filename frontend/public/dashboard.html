@@ -278,15 +278,6 @@
     /* Mission cards: stronger lift + glow */
     .mission-card { will-change: transform; }
     .mission-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
-    /* Critical badge ring on cards that have criticals */
-    .mc__crit-ring {
-      position: absolute; top: 10px; right: 42px;
-      width: 30px; height: 30px; border-radius: 50%;
-      display: grid; place-items: center;
-      font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: #FCA5A5;
-      background: rgba(239,68,68,0.10); border: 1px solid rgba(239,68,68,0.40);
-      box-shadow: 0 0 12px rgba(239,68,68,0.25);
-    }
 
     /* Topbar date */
     .topbar__date { font-size: 11px; color: var(--color-text-dim); font-variant: small-caps; letter-spacing: 0.6px; }
@@ -528,9 +519,6 @@
                      :style="isDraggable(e) ? '' : 'cursor:default;'"
                      @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
                      :class="draggingId === e.id ? 'is-dragging' : ''">
-                  <template x-if="(e._critical_count||0) > 0">
-                    <div class="mc__crit-ring" :title="(e._critical_count)+' chemin(s) critique(s)'" x-text="e._critical_count"></div>
-                  </template>
                   <div class="card-menu" x-show="canManage()">
                     <button class="btn-menu" @click="toggleMenu(e.id,$event)" title="Options">⋯</button>
                     <div class="card-dropdown" x-show="openMenuId === e.id" x-cloak @click.stop>
@@ -601,9 +589,6 @@
                      :style="isDraggable(e) ? '' : 'cursor:default;'"
                      @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
                      :class="draggingId === e.id ? 'is-dragging' : ''">
-                  <template x-if="(e._critical_count||0) > 0">
-                    <div class="mc__crit-ring" :title="(e._critical_count)+' chemin(s) critique(s)'" x-text="e._critical_count"></div>
-                  </template>
                   <div class="card-menu" x-show="canManage()">
                     <button class="btn-menu" @click="toggleMenu(e.id,$event)" title="Options">⋯</button>
                     <div class="card-dropdown" x-show="openMenuId === e.id" x-cloak @click.stop>
@@ -685,9 +670,6 @@
                      :style="isDraggable(e) ? '' : 'cursor:default;'"
                      @dragstart="onDragStart($event,e)" @dragend="onDragEnd($event)"
                      :class="draggingId === e.id ? 'is-dragging' : ''">
-                  <template x-if="(e._critical_count||0) > 0">
-                    <div class="mc__crit-ring" :title="(e._critical_count)+' chemin(s) critique(s)'" x-text="e._critical_count"></div>
-                  </template>
                   <div class="card-menu" x-show="canManage()">
                     <button class="btn-menu" @click="toggleMenu(e.id,$event)" title="Options">⋯</button>
                     <div class="card-dropdown" x-show="openMenuId === e.id" x-cloak @click.stop>
