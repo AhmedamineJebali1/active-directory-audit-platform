@@ -6,13 +6,14 @@
   <title>AD Audit AI — Connexion</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/tokens.css?v=11" />
-  <link rel="stylesheet" href="/css/redesign.css?v=11" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=12" />
+  <link rel="stylesheet" href="/css/redesign.css?v=12" />
   <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
   <script src="/js/api.js?v=14"></script>
   <style>
-    /* Page-specific layout — no extra CSS file needed */
+    /* ── Page shell ─────────────────────────────────────────── */
+    body { background: #070A12; }
     .login-page {
       min-height: 100vh;
       display: grid;
@@ -21,113 +22,163 @@
       position: relative;
       overflow: hidden;
     }
-    /* Animated SVG mesh + grid lines (pure CSS, GPU only) */
-    .login-grid {
+
+    /* Attack-graph canvas — fills viewport behind everything */
+    #graph-canvas {
       position: fixed;
       inset: 0;
-      z-index: -1;
+      z-index: 0;
       pointer-events: none;
-      background-image:
-        linear-gradient(rgba(134, 188, 37, 0.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(134, 188, 37, 0.06) 1px, transparent 1px);
-      background-size: 56px 56px;
-      mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%);
-      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, #000 30%, transparent 80%);
-      animation: grid-shift 30s linear infinite;
     }
-    @keyframes grid-shift {
-      from { background-position: 0 0, 0 0; }
-      to   { background-position: 56px 56px, 56px 56px; }
-    }
-
-    /* Floating accent orbs */
-    .orb {
+    /* Soft vignette so the card area stays readable */
+    .login-vignette {
       position: fixed;
-      width: 380px; height: 380px;
-      border-radius: 50%;
-      filter: blur(80px);
-      opacity: 0.55;
-      z-index: -1;
+      inset: 0;
+      z-index: 1;
       pointer-events: none;
-      animation: orb-float 18s ease-in-out infinite alternate;
-    }
-    .orb--1 { top: -120px; left: -120px; background: radial-gradient(circle, rgba(134, 188, 37, 0.45), transparent 70%); }
-    .orb--2 { bottom: -120px; right: -160px; background: radial-gradient(circle, rgba(59, 130, 246, 0.30), transparent 70%); animation-delay: -6s; }
-    .orb--3 { top: 30%; right: 20%; width: 280px; height: 280px; background: radial-gradient(circle, rgba(168, 85, 247, 0.20), transparent 70%); animation-delay: -12s; }
-    @keyframes orb-float {
-      0%   { transform: translate3d(0, 0, 0) scale(1); }
-      100% { transform: translate3d(40px, -30px, 0) scale(1.15); }
+      background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(7, 10, 18, 0.55) 0%, rgba(7, 10, 18, 0.10) 60%, transparent 100%);
     }
 
-    /* Two-column shell on desktop */
+    /* ── Two-column shell ───────────────────────────────────── */
     .login-shell {
+      position: relative;
+      z-index: 2;
       width: 100%;
-      max-width: 1080px;
+      max-width: 1040px;
       display: grid;
-      grid-template-columns: 1.05fr 1fr;
-      gap: 0;
+      grid-template-columns: 1.08fr 1fr;
       align-items: stretch;
-      animation: fade-up 600ms var(--ease-out) both;
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(134, 188, 37, 0.05);
+      animation: shell-in 700ms var(--ease-out) both;
+    }
+    @keyframes shell-in {
+      from { opacity: 0; transform: translateY(16px) scale(0.985); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
     }
     @media (max-width: 900px) {
-      .login-shell { grid-template-columns: 1fr; max-width: 480px; }
+      .login-shell { grid-template-columns: 1fr; max-width: 440px; }
       .login-shell__brand { display: none; }
     }
 
+    /* ── BRAND PANEL ────────────────────────────────────────── */
     .login-shell__brand {
-      padding: 56px 48px;
-      display: flex; flex-direction: column; justify-content: space-between;
-      gap: 32px;
-      border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+      position: relative;
+      padding: 44px 44px 36px;
+      display: flex; flex-direction: column;
+      gap: 26px;
       background:
-        linear-gradient(160deg, rgba(134, 188, 37, 0.10) 0%, transparent 50%),
-        var(--color-bg-glass);
-      border: 1px solid var(--color-border);
-      border-right: none;
-      backdrop-filter: blur(18px) saturate(140%);
-      -webkit-backdrop-filter: blur(18px) saturate(140%);
+        linear-gradient(150deg, rgba(134, 188, 37, 0.08) 0%, transparent 45%),
+        linear-gradient(180deg, rgba(13, 18, 32, 0.92), rgba(9, 13, 24, 0.96));
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      border-right: 1px solid rgba(148, 163, 184, 0.10);
     }
-    .login-shell__brand h1 {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      margin: 0;
+    /* faint scanline texture */
+    .login-shell__brand::before {
+      content: "";
+      position: absolute; inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px);
     }
-    .login-shell__brand p { color: var(--color-text-muted); font-size: 14px; line-height: 1.65; }
-
-    .feature-list { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none; }
-    .feature-list li {
-      display: flex; align-items: flex-start; gap: 10px;
-      font-size: 13px;
+    .brand-mark {
+      display: inline-flex; align-items: center; gap: 12px;
+      font-size: 17px; font-weight: 800; letter-spacing: -0.2px;
       color: var(--color-text);
     }
-    .feature-list li svg {
-      flex: 0 0 18px;
-      width: 18px; height: 18px;
-      color: var(--color-accent);
-      margin-top: 1px;
+    .brand-mark__logo {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--color-accent-bright), var(--color-accent-dim));
+      display: grid; place-items: center;
+      color: #0A0E1A; font-weight: 900; font-size: 16px;
+      box-shadow: 0 8px 24px var(--color-accent-glow), inset 0 1px 0 rgba(255,255,255,0.25);
     }
-    .login-shell__brand small {
-      font-size: 11px;
-      color: var(--color-text-dim);
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
+    .brand-headline {
+      font-size: 30px;
+      font-weight: 800;
+      line-height: 1.18;
+      letter-spacing: -0.8px;
+      margin: 0;
     }
+    .brand-headline em {
+      font-style: normal;
+      background: linear-gradient(90deg, var(--color-accent-bright), var(--color-accent));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand-sub { color: var(--color-text-muted); font-size: 13.5px; line-height: 1.65; margin: 10px 0 0; max-width: 40ch; }
 
+    /* ── Live terminal feed ─────────────────────────────────── */
+    .term {
+      position: relative;
+      border-radius: 12px;
+      background: rgba(5, 8, 15, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 12px 32px rgba(0,0,0,0.35);
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      flex: 1;
+      display: flex; flex-direction: column;
+      min-height: 170px;
+    }
+    .term__bar {
+      display: flex; align-items: center; gap: 6px;
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.10);
+      background: rgba(255,255,255,0.02);
+    }
+    .term__dot { width: 9px; height: 9px; border-radius: 50%; }
+    .term__dot--r { background: #FF5F57; } .term__dot--y { background: #FEBC2E; } .term__dot--g { background: #28C840; }
+    .term__title { margin-left: 8px; color: var(--color-text-dim); font-size: 10px; letter-spacing: 0.5px; }
+    .term__body { padding: 12px 14px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
+    .term__line { display: flex; gap: 8px; color: #B6C2D4; white-space: nowrap; overflow: hidden; }
+    .term__line .p  { color: var(--color-accent); flex-shrink: 0; }
+    .term__line .crit { color: #F87171; }
+    .term__line .ok   { color: var(--color-accent-bright); }
+    .term__line .dim  { color: #5B6779; }
+    .term__caret {
+      display: inline-block; width: 7px; height: 13px;
+      background: var(--color-accent);
+      vertical-align: -2px;
+      animation: caret-blink 1s steps(1) infinite;
+    }
+    @keyframes caret-blink { 50% { opacity: 0; } }
+
+    .brand-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 10.5px; color: var(--color-text-dim);
+      letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .brand-foot__badges { display: flex; gap: 8px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 9px;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 999px;
+      font-size: 9.5px; font-weight: 600; letter-spacing: 0.6px;
+      color: var(--color-text-muted);
+      background: rgba(255,255,255,0.02);
+    }
+    .pill::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--color-accent); }
+
+    /* ── FORM PANEL ─────────────────────────────────────────── */
     .login-shell__form {
       padding: 48px 44px;
-      background: var(--color-bg-glass);
-      border: 1px solid var(--color-border);
-      border-radius: 0 var(--radius-xl) var(--radius-xl) 0;
-      backdrop-filter: blur(18px) saturate(140%);
-      -webkit-backdrop-filter: blur(18px) saturate(140%);
+      background: rgba(15, 21, 36, 0.88);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
       display: flex; flex-direction: column; justify-content: center;
     }
     @media (max-width: 900px) {
-      .login-shell__form { border-radius: var(--radius-xl); padding: 40px 28px; }
+      .login-shell__form { padding: 40px 28px; }
     }
-    .login-shell__form h2 { font-size: 22px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.2px; }
-    .login-shell__form .subtitle { color: var(--color-text-muted); font-size: 13px; margin: 0 0 28px; }
+    .login-shell__form h2 { font-size: 23px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.4px; }
+    .login-shell__form .subtitle { color: var(--color-text-muted); font-size: 13px; margin: 0 0 30px; }
 
     .login-form { display: flex; flex-direction: column; gap: 18px; }
     .login-error {
@@ -139,15 +190,89 @@
       color: #FCA5A5;
       font-size: 13px;
     }
-    .login-form .btn-2026 { padding: 14px 18px; font-size: 14px; }
+
+    /* field with icon + show/hide password */
+    .field-ico { position: relative; }
+    /* inputs are nested one level deeper than .field-2026 > input expects */
+    .field-ico > input {
+      width: 100%;
+      padding: 12px 14px;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-md);
+      color: var(--color-text);
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color var(--motion-base) var(--ease-out),
+                  box-shadow var(--motion-base) var(--ease-out),
+                  background var(--motion-base) var(--ease-out);
+    }
+    .field-ico > input::placeholder { color: var(--color-text-dim); }
+    .field-ico > input:focus {
+      outline: none;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(134, 188, 37, 0.18), 0 0 24px rgba(134, 188, 37, 0.10);
+      background: rgba(15, 23, 42, 0.75);
+    }
+    /* keep dark fields when the browser autofills */
+    .field-ico > input:-webkit-autofill,
+    .field-ico > input:-webkit-autofill:hover,
+    .field-ico > input:-webkit-autofill:focus {
+      -webkit-box-shadow: 0 0 0 1000px #0F1524 inset;
+      -webkit-text-fill-color: var(--color-text);
+      caret-color: var(--color-text);
+      transition: background-color 9999s ease-in-out 0s;
+    }
+    .field-ico > svg.lead {
+      position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+      width: 16px; height: 16px; color: var(--color-text-dim);
+      pointer-events: none;
+      transition: color var(--motion-base) var(--ease-out);
+    }
+    .field-ico > input { padding-left: 40px !important; }
+    .field-ico > input:focus ~ svg.lead, .field-ico:focus-within > svg.lead { color: var(--color-accent); }
+    .pw-toggle {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      width: 30px; height: 30px;
+      display: grid; place-items: center;
+      background: transparent; border: none; cursor: pointer;
+      color: var(--color-text-dim);
+      border-radius: 8px;
+      transition: color var(--motion-fast) var(--ease-out), background var(--motion-fast) var(--ease-out);
+    }
+    .pw-toggle:hover { color: var(--color-text); background: rgba(255,255,255,0.05); }
+    .pw-toggle svg { width: 16px; height: 16px; }
+
+    /* CTA with sheen sweep */
+    .btn-cta {
+      position: relative;
+      overflow: hidden;
+      padding: 14px 18px;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .btn-cta::after {
+      content: "";
+      position: absolute; top: 0; bottom: 0; left: -60%;
+      width: 40%;
+      background: linear-gradient(100deg, transparent, rgba(255,255,255,0.35), transparent);
+      transform: skewX(-20deg);
+      transition: left 600ms var(--ease-out);
+    }
+    .btn-cta:hover::after { left: 120%; }
 
     .login-footer {
-      margin-top: 28px;
-      text-align: center;
+      margin-top: 30px;
+      display: flex; align-items: center; justify-content: space-between;
       font-size: 11px;
       color: var(--color-text-dim);
       letter-spacing: 0.3px;
     }
+    .login-footer a { color: var(--color-text-muted); text-decoration: none; border-bottom: 1px dotted var(--color-text-dim); padding-bottom: 1px; transition: color var(--motion-fast); }
+    .login-footer a:hover { color: var(--color-accent); }
+    .lock-hint { display: inline-flex; align-items: center; gap: 6px; }
+    .lock-hint svg { width: 11px; height: 11px; }
+
     .spinner-sm {
       width: 14px; height: 14px;
       border-radius: 50%;
@@ -156,56 +281,56 @@
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) {
+      #graph-canvas { display: none; }
+    }
   </style>
 </head>
-<body class="has-mesh-bg">
-  <div class="login-grid"></div>
-  <div class="orb orb--1"></div>
-  <div class="orb orb--2"></div>
-  <div class="orb orb--3"></div>
+<body>
+  <canvas id="graph-canvas"></canvas>
+  <div class="login-vignette"></div>
 
   <div class="login-page" x-data="loginApp()" x-init="init()">
     <div class="login-shell">
 
       <!-- ── BRAND PANEL ───────────────────────────────────── -->
       <aside class="login-shell__brand">
+        <div class="brand-mark">
+          <span class="brand-mark__logo">AD</span>
+          <span>AD Audit AI</span>
+        </div>
+
         <div>
-          <div class="brand-glow" style="margin-bottom: 28px;">
-            <span class="brand-glow__logo">AD</span>
-            <span>AD Audit AI</span>
-          </div>
-          <h1>Sécurisez votre Active Directory.</h1>
-          <p style="margin-top: 12px;">
-            Détection automatisée des chemins d'attaque,
-            scoring par IA, mapping MITRE ATT&amp;CK et rapports
-            d'audit livrables — en un clic.
+          <h1 class="brand-headline">
+            Vos chemins d'attaque,<br>
+            <em>avant l'attaquant.</em>
+          </h1>
+          <p class="brand-sub">
+            Cartographie Active Directory, scoring par IA, mapping
+            MITRE ATT&amp;CK et rapport d'audit livrable — automatisés
+            de bout en bout.
           </p>
         </div>
 
-        <ul class="feature-list">
-          <li>
-            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Collecte directe AD ou import BloodHound
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Analyse IA — explications et plan d'action en français
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Mapping MITRE ATT&amp;CK complet
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Guides de mitigation prêts à l'emploi
-          </li>
-          <li>
-            <svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Mode 100 % local disponible (Ollama)
-          </li>
-        </ul>
+        <!-- Live audit feed (decorative) -->
+        <div class="term" aria-hidden="true">
+          <div class="term__bar">
+            <span class="term__dot term__dot--r"></span>
+            <span class="term__dot term__dot--y"></span>
+            <span class="term__dot term__dot--g"></span>
+            <span class="term__title">audit — pipeline</span>
+          </div>
+          <div class="term__body" id="term-body"></div>
+        </div>
 
-        <small>Plateforme d'audit Active Directory · 2026</small>
+        <div class="brand-foot">
+          <span>Audit Active Directory · 2026</span>
+          <span class="brand-foot__badges">
+            <span class="pill">MITRE ATT&amp;CK</span>
+            <span class="pill">100% local</span>
+          </span>
+        </div>
       </aside>
 
       <!-- ── FORM PANEL ────────────────────────────────────── -->
@@ -223,19 +348,29 @@
 
           <div class="field-2026">
             <label for="email">Adresse e-mail</label>
-            <input id="email" type="email" required
-                   x-model="email" autocomplete="username"
-                   placeholder="vous@organisation.com" />
+            <div class="field-ico">
+              <input id="email" type="email" required
+                     x-model="email" autocomplete="username"
+                     placeholder="vous@organisation.com" />
+              <svg class="lead" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3 7l9 6 9-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
           </div>
 
           <div class="field-2026">
             <label for="password">Mot de passe</label>
-            <input id="password" type="password" required
-                   x-model="password" autocomplete="current-password"
-                   placeholder="••••••••" />
+            <div class="field-ico">
+              <input id="password" :type="showPw ? 'text' : 'password'" required
+                     x-model="password" autocomplete="current-password"
+                     placeholder="••••••••" />
+              <svg class="lead" viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7a4 4 0 118 0v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <button type="button" class="pw-toggle" @click="showPw = !showPw" :title="showPw ? 'Masquer' : 'Afficher'">
+                <svg x-show="!showPw" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/></svg>
+                <svg x-show="showPw" x-cloak viewBox="0 0 24 24" fill="none"><path d="M3 3l18 18M10.5 5.2A9.8 9.8 0 0112 5c6.5 0 10 7 10 7a17.4 17.4 0 01-3.1 4M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7c1.5 0 2.9-.4 4.1-1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
           </div>
 
-          <button class="btn-2026 btn-2026--primary" type="submit" :disabled="loading">
+          <button class="btn-2026 btn-2026--primary btn-cta" type="submit" :disabled="loading">
             <template x-if="!loading">
               <span style="display:inline-flex;align-items:center;gap:8px;">
                 Se connecter
@@ -252,9 +387,11 @@
         </form>
 
         <p class="login-footer">
-          Accès réservé aux auditeurs autorisés
-          <br>
-          <a href="/forgot-password.html" style="color:var(--color-text-muted);text-decoration:underline;font-size:11px;">Mot de passe oublié ?</a>
+          <span class="lock-hint">
+            <svg viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 10V7a4 4 0 118 0v3" stroke="currentColor" stroke-width="2"/></svg>
+            Accès réservé aux auditeurs autorisés
+          </span>
+          <a href="/forgot-password.html">Mot de passe oublié ?</a>
         </p>
       </main>
     </div>
@@ -268,6 +405,7 @@
         loading: false,
         error: null,
         errorShake: false,
+        showPw: false,
         init() {
           if (api.getAccessToken()) location.href = '/dashboard.html';
         },
@@ -292,5 +430,164 @@
       };
     }
   </script>
+
+  <!-- ── Attack-graph background animation ─────────────────── -->
+  <script>
+  (function () {
+    const canvas = document.getElementById('graph-canvas');
+    if (!canvas || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const ctx = canvas.getContext('2d');
+    const DPR = Math.min(devicePixelRatio || 1, 2);
+    let W, H, nodes = [], pulses = [];
+
+    const GREEN = '134, 188, 37';
+    const BLUE  = '96, 130, 182';
+    const RED   = '239, 68, 68';
+    const LINK_DIST = 170;
+
+    function resize() {
+      W = innerWidth; H = innerHeight;
+      canvas.width = W * DPR; canvas.height = H * DPR;
+      canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      seed();
+    }
+
+    function seed() {
+      const count = Math.min(90, Math.floor((W * H) / 16000));
+      nodes = [];
+      for (let i = 0; i < count; i++) {
+        // ~6% privileged targets (red ring), rest standard principals
+        const priv = Math.random() < 0.06;
+        nodes.push({
+          x: Math.random() * W,
+          y: Math.random() * H,
+          vx: (Math.random() - 0.5) * 0.22,
+          vy: (Math.random() - 0.5) * 0.22,
+          r: priv ? 3.2 : 1.4 + Math.random() * 1.3,
+          priv,
+        });
+      }
+      pulses = [];
+    }
+
+    function spawnPulse() {
+      // pulse travels from a random node toward a privileged one (attack path)
+      if (nodes.length < 2) return;
+      const targets = nodes.filter(n => n.priv);
+      if (!targets.length) return;
+      const from = nodes[Math.floor(Math.random() * nodes.length)];
+      const to = targets[Math.floor(Math.random() * targets.length)];
+      if (from === to) return;
+      pulses.push({ from, to, t: 0, speed: 0.004 + Math.random() * 0.004 });
+    }
+
+    let last = 0;
+    function frame(ts) {
+      const dt = Math.min(ts - last, 50); last = ts;
+      ctx.clearRect(0, 0, W, H);
+
+      // move nodes
+      for (const n of nodes) {
+        n.x += n.vx * dt * 0.06; n.y += n.vy * dt * 0.06;
+        if (n.x < -20) n.x = W + 20; if (n.x > W + 20) n.x = -20;
+        if (n.y < -20) n.y = H + 20; if (n.y > H + 20) n.y = -20;
+      }
+
+      // edges
+      ctx.lineWidth = 1;
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const a = nodes[i], b = nodes[j];
+          const dx = a.x - b.x, dy = a.y - b.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 > LINK_DIST * LINK_DIST) continue;
+          const alpha = (1 - Math.sqrt(d2) / LINK_DIST) * 0.14;
+          ctx.strokeStyle = `rgba(${(a.priv || b.priv) ? GREEN : BLUE}, ${alpha})`;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
+
+      // nodes
+      for (const n of nodes) {
+        if (n.priv) {
+          ctx.strokeStyle = `rgba(${RED}, 0.55)`;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(n.x, n.y, n.r + 3, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = `rgba(${RED}, 0.85)`;
+        } else {
+          ctx.fillStyle = `rgba(${BLUE}, 0.6)`;
+        }
+        ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // pulses (green dots racing toward privileged nodes)
+      for (let k = pulses.length - 1; k >= 0; k--) {
+        const p = pulses[k];
+        p.t += p.speed * dt;
+        if (p.t >= 1) { pulses.splice(k, 1); continue; }
+        const x = p.from.x + (p.to.x - p.from.x) * p.t;
+        const y = p.from.y + (p.to.y - p.from.y) * p.t;
+        ctx.strokeStyle = `rgba(${GREEN}, ${0.25 * (1 - p.t)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(p.from.x, p.from.y); ctx.lineTo(x, y); ctx.stroke();
+        const g = ctx.createRadialGradient(x, y, 0, x, y, 7);
+        g.addColorStop(0, `rgba(${GREEN}, 0.9)`); g.addColorStop(1, `rgba(${GREEN}, 0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
+      }
+
+      requestAnimationFrame(frame);
+    }
+
+    addEventListener('resize', resize);
+    resize();
+    setInterval(spawnPulse, 1400);
+    requestAnimationFrame(frame);
+  })();
+  </script>
+
+  <!-- ── Terminal typewriter feed ──────────────────────────── -->
+  <script>
+  (function () {
+    const body = document.getElementById('term-body');
+    if (!body) return;
+    const LINES = [
+      ['$', 'collecte LDAP <span class="dim">—</span> 1 247 objets énumérés', ''],
+      ['$', 'graphe construit <span class="dim">—</span> 312 nœuds · 905 arêtes', ''],
+      ['!', 'chemin <span class="crit">critique</span> : SUPPORT-IT → GenericAll → <span class="crit">Domain Admins</span>', 'crit'],
+      ['$', 'mapping MITRE <span class="dim">—</span> T1003.006 <span class="dim">(DCSync)</span>', ''],
+      ['$', 'analyse IA <span class="dim">—</span> 42 chemins scorés', ''],
+      ['✓', 'rapport PDF généré <span class="ok">— prêt au téléchargement</span>', 'ok'],
+    ];
+    const MAX_VISIBLE = 5;
+    let idx = 0;
+
+    function pushLine() {
+      const [prompt, html, cls] = LINES[idx % LINES.length];
+      idx++;
+      const div = document.createElement('div');
+      div.className = 'term__line';
+      div.innerHTML = `<span class="p ${cls}">${prompt}</span><span>${html}</span>`;
+      div.style.opacity = '0';
+      div.style.transform = 'translateY(4px)';
+      div.style.transition = 'opacity 300ms ease-out, transform 300ms ease-out';
+      // remove caret from previous line
+      const caret = body.querySelector('.term__caret');
+      if (caret) caret.remove();
+      body.appendChild(div);
+      requestAnimationFrame(() => { div.style.opacity = '1'; div.style.transform = 'translateY(0)'; });
+      const c = document.createElement('span');
+      c.className = 'term__caret';
+      div.lastElementChild.appendChild(c);
+      while (body.children.length > MAX_VISIBLE) body.removeChild(body.firstChild);
+    }
+
+    pushLine();
+    setInterval(pushLine, 2200);
+  })();
+  </script>
+
+  <style>[x-cloak]{display:none!important}</style>
 </body>
 </html>

@@ -163,7 +163,66 @@
 
     @media (max-width: 1100px) { .stat-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 700px)  { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    /* ── 2026.2 polish ──────────────────────────────────────── */
+    /* KPI cards: sheen sweep on hover + icon pop */
+    .stat-card::after {
+      content: "";
+      position: absolute; top: 0; bottom: 0; left: -70%;
+      width: 45%;
+      background: linear-gradient(100deg, transparent, rgba(255,255,255,0.05), transparent);
+      transform: skewX(-18deg);
+      transition: left 600ms var(--ease-out);
+      pointer-events: none;
+    }
+    .stat-card:hover::after { left: 140%; }
+    .stat-card__icon { transition: transform var(--motion-base) var(--ease-out); }
+    .stat-card:hover .stat-card__icon { transform: scale(1.12) rotate(-3deg); }
+
+    /* Kanban columns: state-coloured top edge + tinted header */
+    .kanban__col { position: relative; }
+    .kanban__col::before {
+      content: "";
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      opacity: 0.85;
+    }
+    .kanban__col[data-col="draft"]::before       { background: linear-gradient(90deg, rgba(148,163,184,0.55), transparent 70%); }
+    .kanban__col[data-col="in_progress"]::before { background: linear-gradient(90deg, #4A9EFF, transparent 70%); box-shadow: 0 0 14px rgba(74,158,255,0.25); }
+    .kanban__col[data-col="completed"]::before   { background: linear-gradient(90deg, var(--color-accent), transparent 70%); box-shadow: 0 0 14px rgba(134,188,37,0.25); }
+
+    /* Mission cards: smoother lift */
+    .mission-card { will-change: transform; }
+    .mission-card:hover { transform: translateY(-3px) scale(1.005); }
+
+    /* Topbar date */
+    .topbar__date {
+      font-size: 11px;
+      color: var(--color-text-dim);
+      font-variant: small-caps;
+      letter-spacing: 0.6px;
+    }
   </style>
+
+  <script>
+    /* Animated count-up for KPI values (used via Alpine x-effect) */
+    function countUp(el, target) {
+      target = Number(target) || 0;
+      const from = Number(el.dataset.cur || 0);
+      if (from === target) { el.textContent = target; return; }
+      if (el._cuRaf) cancelAnimationFrame(el._cuRaf);
+      const t0 = performance.now(), dur = 750;
+      function tick(now) {
+        const p = Math.min((now - t0) / dur, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = Math.round(from + (target - from) * eased);
+        if (p < 1) el._cuRaf = requestAnimationFrame(tick);
+        else el.dataset.cur = target;
+      }
+      el._cuRaf = requestAnimationFrame(tick);
+    }
+  </script>
 </head>
 <body class="has-mesh-bg">
   <div class="app-shell" id="app-shell">
@@ -174,7 +233,10 @@
       <header class="topbar">
         <div>
           <div class="topbar__title">Tableau de bord</div>
-          <div class="topbar__breadcrumb">Vos missions d'audit Active Directory</div>
+          <div class="topbar__breadcrumb">
+            Vos missions d'audit Active Directory
+            <span class="topbar__date" x-data x-init="$el.textContent = ' · ' + new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })"></span>
+          </div>
         </div>
         <div class="topbar__spacer"></div>
         <div class="topbar__actions" x-data="{}">
@@ -229,7 +291,7 @@
                 <svg viewBox="0 0 24 24" fill="none"><path d="M3 7h18v13H3zM8 7V4h8v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
               </span>
             </div>
-            <div class="stat-card__value" data-count :data-target="stats.total || 0" x-text="stats.total || 0"></div>
+            <div class="stat-card__value" x-effect="countUp($el, stats.total || 0)">0</div>
           </div>
 
           <div class="stat-card" style="--i:1">
@@ -239,7 +301,7 @@
                 <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
               </span>
             </div>
-            <div class="stat-card__value" x-text="stats.draft || 0"></div>
+            <div class="stat-card__value" x-effect="countUp($el, stats.draft || 0)">0</div>
           </div>
 
           <div class="stat-card" style="--i:2; --top: #4A9EFF;">
@@ -249,7 +311,7 @@
                 <svg viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </span>
             </div>
-            <div class="stat-card__value" style="color:#4A9EFF;" x-text="stats.in_progress || 0"></div>
+            <div class="stat-card__value" style="color:#4A9EFF;" x-effect="countUp($el, stats.in_progress || 0)">0</div>
           </div>
 
           <div class="stat-card" style="--i:3">
@@ -259,7 +321,7 @@
                 <svg viewBox="0 0 24 24" fill="none"><path d="M22 11.08V12a10 10 0 11-5.93-9.14M22 4L12 14.01l-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </span>
             </div>
-            <div class="stat-card__value" style="color:var(--color-accent);" x-text="stats.completed || 0"></div>
+            <div class="stat-card__value" style="color:var(--color-accent);" x-effect="countUp($el, stats.completed || 0)">0</div>
           </div>
 
           <div class="stat-card" style="--i:4">
@@ -269,7 +331,7 @@
                 <svg viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="6" r="3" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="18" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M8 8l3 7M16 8l-3 7" stroke="currentColor" stroke-width="1.8"/></svg>
               </span>
             </div>
-            <div class="stat-card__value" x-text="stats.total_paths || 0"></div>
+            <div class="stat-card__value" x-effect="countUp($el, stats.total_paths || 0)">0</div>
           </div>
 
           <div class="stat-card stat-card--critique" style="--i:5">
@@ -279,7 +341,7 @@
                 <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L2 22h20L12 2zM12 9v5M12 18h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </span>
             </div>
-            <div class="stat-card__value" style="color:var(--risk-critique);" x-text="stats.total_critical || 0"></div>
+            <div class="stat-card__value" style="color:var(--risk-critique);" x-effect="countUp($el, stats.total_critical || 0)">0</div>
           </div>
         </div>
 
@@ -298,7 +360,7 @@
         <div class="kanban">
 
           <!-- En attente -->
-          <div class="kanban__col"
+          <div class="kanban__col" data-col="draft"
                @dragover.prevent="onDragOver($event,'draft')"
                @dragleave="onDragLeave($event)"
                @drop="onDrop($event,'draft')"
@@ -368,7 +430,7 @@
           </div>
 
           <!-- En cours -->
-          <div class="kanban__col"
+          <div class="kanban__col" data-col="in_progress"
                @dragover.prevent="onDragOver($event,'in_progress')"
                @dragleave="onDragLeave($event)"
                @drop="onDrop($event,'in_progress')"
@@ -449,7 +511,7 @@
           </div>
 
           <!-- Terminées -->
-          <div class="kanban__col"
+          <div class="kanban__col" data-col="completed"
                @dragover.prevent="onDragOver($event,'completed')"
                @dragleave="onDragLeave($event)"
                @drop="onDrop($event,'completed')"
