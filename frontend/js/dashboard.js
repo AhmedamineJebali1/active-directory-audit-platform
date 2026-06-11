@@ -237,12 +237,14 @@ function dashboardApp() {
 
     // ── Drag and drop ─────────────────────────────────────────────────────────
 
-    /** True if the user can drag this specific engagement card to change its status. */
+    /** True if the user can drag this card to change its status.
+     *  Mirrors the status buttons' gate (canManage): an admin/manager who can
+     *  see the "Démarrer/Terminer" buttons can also drag, even without an
+     *  explicit membership. Viewer-only members (manager globally but viewer on
+     *  this mission) are still blocked. */
     canDragEngagement(engagement) {
       if (!this.canManage()) return false;
-      // Viewer-only engagement members cannot change status even if global role is manager.
-      const rank = { lead: 3, contributor: 2, viewer: 1 };
-      return (rank[engagement.user_role] || 0) >= 2;
+      return engagement.user_role !== 'viewer';
     },
 
     onDragStart(event, engagement) {
