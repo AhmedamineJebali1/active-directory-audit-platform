@@ -41,6 +41,7 @@
       cog:   '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" stroke="currentColor" stroke-width="1.6"/></svg>',
       users: '<svg viewBox="0 0 24 24" fill="none"><circle cx="9" cy="8" r="3.5" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="9" r="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3 19c0-3 2.5-5 6-5s6 2 6 5M14 14c2.5 0 6 1.5 7 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
       audit: '<svg viewBox="0 0 24 24" fill="none"><path d="M5 4h11l3 3v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.6"/><path d="M9 11h6M9 14h6M9 17h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+      reg:   '<svg viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M3 9h18M8 13h9M8 16h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
       out:   '<svg viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     };
 
@@ -55,6 +56,10 @@
           <a class="sidebar__item ${activeKey === 'dashboard' ? 'is-active' : ''}" href="/dashboard.html">
             <span class="sidebar__icon">${ico.dash}</span>
             <span class="sidebar__label">Tableau de bord</span>
+          </a>
+          <a class="sidebar__item ${activeKey === 'missions' ? 'is-active' : ''}" href="/missions.html">
+            <span class="sidebar__icon">${ico.reg}</span>
+            <span class="sidebar__label">Registre des missions</span>
           </a>
           ${isAdmin ? `<a class="sidebar__item ${activeKey === 'users' ? 'is-active' : ''}" href="/users.html">
             <span class="sidebar__icon">${ico.users}</span>

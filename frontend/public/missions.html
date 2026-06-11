@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Registre des missions — AD Audit AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/tokens.css?v=13" />
+  <link rel="stylesheet" href="/css/redesign.css?v=13" />
+  <link rel="stylesheet" href="/css/components.css?v=13" />
+  <link rel="stylesheet" href="/css/toast.css?v=13" />
+  <script src="/js/api.js?v=15"></script>
+  <script src="/js/auth.js?v=14"></script>
+  <script src="/js/toast.js?v=13"></script>
+  <script src="/js/status_chips.js?v=13"></script>
+  <script src="/js/missions.js?v=2"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.5/dist/cdn.min.js"></script>
+
+  <style>
+    /* ── Summary chips ──────────────────────────────────────── */
+    .reg-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px; }
+    .reg-chip {
+      display: flex; align-items: center; gap: 9px;
+      padding: 9px 14px; border-radius: var(--radius-md);
+      background: var(--color-bg-glass); border: 1px solid var(--color-border);
+      backdrop-filter: blur(10px);
+    }
+    .reg-chip__dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+    .reg-chip__val { font-family: var(--font-mono); font-size: 16px; font-weight: 700; color: var(--color-text); font-variant-numeric: tabular-nums; }
+    .reg-chip__lbl { font-size: 11px; color: var(--color-text-muted); }
+
+    /* ── Filter bar ─────────────────────────────────────────── */
+    .filters {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto auto;
+      gap: 12px; align-items: end;
+      padding: 16px; margin-bottom: 18px;
+      border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+      background: var(--color-bg-glass); backdrop-filter: blur(12px);
+    }
+    @media (max-width: 980px) { .filters { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 560px) { .filters { grid-template-columns: 1fr; } }
+    .fl-group { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .fl-label { font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--color-text-muted); }
+    .fl-input, .fl-select {
+      height: 40px; padding: 0 12px;
+      background: rgba(15,23,42,0.55); border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-md); color: var(--color-text);
+      font-family: inherit; font-size: 13px;
+      transition: border-color var(--motion-base) var(--ease-out), box-shadow var(--motion-base) var(--ease-out);
+    }
+    .fl-input:focus, .fl-select:focus { outline: none; border-color: var(--color-accent); box-shadow: 0 0 0 3px rgba(134,188,37,0.16); }
+    .fl-search { position: relative; }
+    .fl-search > .fl-input { width: 100%; padding-left: 38px; }
+    .fl-search > svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--color-text-dim); pointer-events: none; }
+    .fl-dates { display: flex; gap: 8px; align-items: end; }
+    .fl-reset {
+      height: 40px; padding: 0 14px; white-space: nowrap;
+      background: transparent; border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-md); color: var(--color-text-muted);
+      font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all var(--motion-fast) var(--ease-out);
+    }
+    .fl-reset:hover { color: var(--color-text); border-color: var(--color-accent); background: rgba(134,188,37,0.06); }
+    input[type="date"].fl-input { color-scheme: dark; }
+
+    /* ── Result table ───────────────────────────────────────── */
+    .reg-wrap { border: 1px solid var(--color-border); border-radius: var(--radius-lg); overflow: hidden; background: rgba(17,24,39,0.45); }
+    .reg-bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--color-border); }
+    .reg-bar__count { font-size: 13px; color: var(--color-text-muted); }
+    .reg-bar__count b { color: var(--color-text); font-family: var(--font-mono); }
+    .reg-tablewrap { overflow-x: auto; }
+    .reg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .reg-table thead th {
+      text-align: left; padding: 11px 16px; white-space: nowrap;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--color-text-dim); background: rgba(255,255,255,0.015);
+      border-bottom: 1px solid var(--color-border); cursor: pointer; user-select: none;
+      transition: color var(--motion-fast) var(--ease-out);
+    }
+    .reg-table thead th:hover { color: var(--color-text-muted); }
+    .reg-table thead th .so { margin-left: 4px; opacity: 0.6; font-size: 11px; }
+    .reg-table tbody td { padding: 13px 16px; border-bottom: 1px solid var(--color-border); color: var(--color-text-muted); vertical-align: middle; }
+    .reg-table tbody tr { cursor: pointer; transition: background var(--motion-fast) var(--ease-out); }
+    .reg-table tbody tr:hover { background: rgba(134,188,37,0.04); }
+    .reg-table tbody tr:last-child td { border-bottom: none; }
+    .reg-code { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--color-accent); letter-spacing: 0.04em; white-space: nowrap; }
+    .reg-client { font-weight: 600; color: var(--color-text); }
+    .reg-desc { font-size: 11px; color: var(--color-text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; }
+    .reg-num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--color-text); }
+    .reg-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+    .st-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-pill); font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .st-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .st--draft    { background: rgba(148,163,184,0.12); color: #9CA3AF; }
+    .st--progress { background: rgba(74,158,255,0.12);  color: #4A9EFF; }
+    .st--done     { background: rgba(134,188,37,0.12);  color: var(--color-accent); }
+    .st--archived { background: rgba(148,163,184,0.08); color: var(--color-text-dim); }
+
+    .reg-open { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; background: rgba(134,188,37,0.10); border: 1px solid rgba(134,188,37,0.25); color: var(--color-accent); white-space: nowrap; }
+    .reg-empty { padding: 64px 20px; text-align: center; }
+    .reg-empty__ico { width: 56px; height: 56px; border-radius: 50%; background: rgba(148,163,184,0.08); display: grid; place-items: center; margin: 0 auto 16px; color: var(--color-text-dim); }
+    .skel-row td { padding: 13px 16px; }
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="has-mesh-bg">
+  <div class="app-shell" id="app-shell">
+    <div id="nav-slot"></div>
+
+    <div>
+      <header class="topbar">
+        <div>
+          <div class="topbar__title">Registre des missions</div>
+          <div class="topbar__breadcrumb">Toutes les missions — recherche, filtres et tri</div>
+        </div>
+        <div class="topbar__spacer"></div>
+        <div class="topbar__actions"></div>
+      </header>
+
+      <main class="main-content" x-data="missionsApp()" x-init="init()">
+
+        <!-- summary chips -->
+        <div class="reg-summary" x-show="!loading" x-cloak>
+          <div class="reg-chip"><span class="reg-chip__val" x-text="all.length"></span><span class="reg-chip__lbl">Total</span></div>
+          <div class="reg-chip"><span class="reg-chip__dot" style="background:#9CA3AF;"></span><span class="reg-chip__val" x-text="countBy('draft')"></span><span class="reg-chip__lbl">En attente</span></div>
+          <div class="reg-chip"><span class="reg-chip__dot" style="background:#4A9EFF;"></span><span class="reg-chip__val" x-text="countBy('in_progress')"></span><span class="reg-chip__lbl">En cours</span></div>
+          <div class="reg-chip"><span class="reg-chip__dot" style="background:#86BC25;"></span><span class="reg-chip__val" x-text="countBy('completed')"></span><span class="reg-chip__lbl">Terminées</span></div>
+          <div class="reg-chip"><span class="reg-chip__dot" style="background:#6B7280;"></span><span class="reg-chip__val" x-text="countBy('archived')"></span><span class="reg-chip__lbl">Archivées</span></div>
+        </div>
+
+        <!-- filter bar -->
+        <div class="filters" x-show="!loading" x-cloak>
+          <div class="fl-group">
+            <label class="fl-label">Recherche</label>
+            <div class="fl-search">
+              <svg viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <input class="fl-input" type="text" x-model="search" placeholder="Client, code ou description…" />
+            </div>
+          </div>
+
+          <div class="fl-group">
+            <label class="fl-label">Statut</label>
+            <select class="fl-select" x-model="statusFilter">
+              <option value="all">Tous</option>
+              <option value="draft">En attente</option>
+              <option value="in_progress">En cours</option>
+              <option value="completed">Terminée</option>
+              <option value="archived">Archivée</option>
+            </select>
+          </div>
+
+          <div class="fl-group">
+            <label class="fl-label">Date</label>
+            <select class="fl-select" x-model="dateField">
+              <option value="created_at">Création</option>
+              <option value="updated_at">Dernière maj</option>
+            </select>
+          </div>
+
+          <div class="fl-group">
+            <label class="fl-label">Période</label>
+            <div class="fl-dates">
+              <input class="fl-input" type="date" x-model="dateFrom" title="Du" />
+              <input class="fl-input" type="date" x-model="dateTo" title="Au" />
+            </div>
+          </div>
+
+          <div class="fl-group">
+            <label class="fl-label">&nbsp;</label>
+            <button class="fl-reset" @click="resetFilters()" :disabled="!hasFilters" :style="hasFilters ? '' : 'opacity:0.4;cursor:default;'">
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+
+        <template x-if="error">
+          <div class="login-error" style="margin-bottom:16px;" x-text="error"></div>
+        </template>
+
+        <!-- result table -->
+        <div class="reg-wrap">
+          <div class="reg-bar">
+            <span class="reg-bar__count">
+              <b x-text="loading ? '…' : filtered.length"></b>
+              <span x-text="(filtered.length > 1 ? ' missions' : ' mission') + (hasFilters ? ' (filtré)' : '')"></span>
+            </span>
+          </div>
+
+          <div class="reg-tablewrap">
+            <table class="reg-table">
+              <thead>
+                <tr>
+                  <th @click="sortBy('code')">Code <span class="so" x-text="sortIcon('code')"></span></th>
+                  <th @click="sortBy('client_name')">Client <span class="so" x-text="sortIcon('client_name')"></span></th>
+                  <th @click="sortBy('status')">Statut <span class="so" x-text="sortIcon('status')"></span></th>
+                  <th @click="sortBy('_analyses_count')">Analyses <span class="so" x-text="sortIcon('_analyses_count')"></span></th>
+                  <th @click="sortBy('_paths_count')">Chemins <span class="so" x-text="sortIcon('_paths_count')"></span></th>
+                  <th @click="sortBy('created_at')">Créée le <span class="so" x-text="sortIcon('created_at')"></span></th>
+                  <th @click="sortBy('updated_at')">Dernière maj <span class="so" x-text="sortIcon('updated_at')"></span></th>
+                  <th style="text-align:right;cursor:default;">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- skeleton -->
+                <template x-if="loading">
+                  <template x-for="i in 6" :key="i">
+                    <tr class="skel-row">
+                      <td><div class="skeleton" style="height:12px;width:80px;"></div></td>
+                      <td><div class="skeleton" style="height:12px;width:140px;"></div></td>
+                      <td><div class="skeleton" style="height:18px;width:80px;border-radius:999px;"></div></td>
+                      <td><div class="skeleton" style="height:12px;width:30px;"></div></td>
+                      <td><div class="skeleton" style="height:12px;width:40px;"></div></td>
+                      <td><div class="skeleton" style="height:12px;width:80px;"></div></td>
+                      <td><div class="skeleton" style="height:12px;width:80px;"></div></td>
+                      <td><div class="skeleton" style="height:24px;width:60px;margin-left:auto;"></div></td>
+                    </tr>
+                  </template>
+                </template>
+
+                <template x-if="!loading">
+                  <template x-for="e in filtered" :key="e.id">
+                    <tr @click="open(e)">
+                      <td><span class="reg-code" x-text="e.code"></span></td>
+                      <td>
+                        <div class="reg-client" x-text="e.client_name"></div>
+                        <div class="reg-desc" x-text="e.description || '—'"></div>
+                      </td>
+                      <td><span class="st-badge" :class="statusClass(e.status)" x-text="statusLabel(e.status)"></span></td>
+                      <td><span class="reg-num" x-text="e._analyses_count||0"></span></td>
+                      <td><span class="reg-num" x-text="e._paths_count||0"></span></td>
+                      <td class="reg-date" x-text="fmtDate(e.created_at)"></td>
+                      <td class="reg-date" x-text="fmtDate(e.updated_at)"></td>
+                      <td style="text-align:right;">
+                        <span class="reg-open">
+                          Ouvrir
+                          <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </span>
+                      </td>
+                    </tr>
+                  </template>
+                </template>
+              </tbody>
+            </table>
+
+            <!-- empty -->
+            <template x-if="!loading && filtered.length === 0">
+              <div class="reg-empty">
+                <div class="reg-empty__ico">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M21 21l-4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                </div>
+                <div style="font-size:15px;font-weight:700;color:var(--color-text);margin-bottom:6px;">Aucune mission trouvée</div>
+                <p style="font-size:13px;color:var(--color-text-muted);max-width:340px;margin:0 auto 16px;line-height:1.6;" x-text="hasFilters ? 'Aucune mission ne correspond à ces critères. Ajustez la recherche ou la période.' : 'Aucune mission enregistrée pour le moment.'"></p>
+                <button class="fl-reset" x-show="hasFilters" @click="resetFilters()">Réinitialiser les filtres</button>
+              </div>
+            </template>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+</body>
+</html>
